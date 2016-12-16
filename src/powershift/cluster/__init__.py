@@ -311,11 +311,12 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         command = ' '.join(command)
 
-        result = execute(command)
+        if sys.platform != 'win32':
+            result = execute(command)
 
-        if result.returncode != 0:
-            click.echo('Failed: Unable to assign sudoer role to developer.')
-            ctx.exit(result.returncode)
+            if result.returncode != 0:
+                click.echo('Failed: Unable to assign sudoer role to developer.')
+                ctx.exit(result.returncode)
 
         # Setup an admin account that can be used from the web console.
 
