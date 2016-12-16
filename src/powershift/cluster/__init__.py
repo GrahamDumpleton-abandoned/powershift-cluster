@@ -39,6 +39,17 @@ def execute_and_capture(command):
     return subprocess.check_output(shlex.split(command),
             universal_newlines=True)
 
+def container_path(path):
+    # On Windows, the DOS style path needs to be converted to POSIX
+    # style path separators and a UNC style drive definition when the
+    # path is used inside of the container.
+
+    if sys.platform == 'win32':
+        drive, path = os.path.splitdrive(path)
+        path = '/%s%s' % (drive[:-1], path.replace('\\', '/'))
+
+    return path
+
 def active_instance():
     container = execute_and_capture('docker ps -f name=origin -q')
     container = container.strip()
@@ -225,24 +236,19 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         command = ['oc cluster up']
 
+        # Don't pass through any IP address by default for Windows as it
+        # will allocate one itself based on what the VM is that Docker is
+        # running. Too much mucking around to work out what it is and the
+        # default system to be secure enough as is an internal IP.
+
         if sys.platform == 'win32':
             if ipaddr != '127.0.0.1':
                 command.append('--public-hostname "%s"' % ipaddr)
         else:
             command.append('--public-hostname "%s"' % ipaddr)
 
-        if sys.platform == 'win32':
-            drive, path = os.path.splitdrive(data_dir)
-            win32_data_dir = '/%s%s' % (drive[:-1], path.replace('\\', '/'))
-            drive, path = os.path.splitdrive(config_dir)
-            win32_config_dir = '/%s%s' % (drive[:-1], path.replace('\\', '/'))
-
-            command.append('--host-data-dir "%s"' % win32_data_dir)
-            command.append('--host-config-dir "%s"' % win32_config_dir)
-
-        else:
-            command.append('--host-data-dir "%s"' % data_dir)
-            command.append('--host-config-dir "%s"' % config_dir)
+        command.append('--host-data-dir "%s"' % container_path(data_dir))
+        command.append('--host-config-dir "%s"' % container_path(config_dir))
 
         command.append('--use-existing-config')
 
@@ -572,17 +578,14 @@ def volumes_create(ctx, name, path, size, claim):
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
 
-    if sys.platform == 'win32':
-        drive, path = os.path.splitdrive(path)
-        path = '/%s%s' % (drive[:-1], path.replace('\\', '/'))
-
     # Define the persistent volume.
 
     pv = resources.v1_PersistentVolume(
         metadata=resources.v1_ObjectMeta(name=name),
         spec=resources.v1_PersistentVolumeSpec(
             capacity=resources.Resource(storage=size),
-            host_path=resources.v1_HostPathVolumeSource(path=path),
+            host_path=resources.v1_HostPathVolumeSource(
+                path=container_path(path)),
             access_modes=['ReadWriteOnce','ReadWriteMany'],
             persistent_volume_reclaim_policy='Retain'
         )
