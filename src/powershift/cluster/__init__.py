@@ -232,13 +232,18 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             command.append('--public-hostname "%s"' % ipaddr)
 
         if sys.platform == 'win32':
-            data_dir = os.path.splitdrive(data_dir)[1]
-            data_dir = data_dir.replace('\\', '/')
-            config_dir = os.path.splitdrive(config_dir)[1]
-            config_dir = config_dir.replace('\\', '/')
+            win32_data_dir = os.path.splitdrive(data_dir)[1]
+            win32_data_dir = win32_data_dir.replace('\\', '/')
+            win32_config_dir = os.path.splitdrive(config_dir)[1]
+            win32_config_dir = win32_config_dir.replace('\\', '/')
 
-        command.append('--host-data-dir "%s"' % data_dir)
-        command.append('--host-config-dir "%s"' % config_dir)
+            command.append('--host-data-dir "%s"' % win32_data_dir)
+            command.append('--host-config-dir "%s"' % win32_config_dir)
+
+        else:
+            command.append('--host-data-dir "%s"' % data_dir)
+            command.append('--host-config-dir "%s"' % config_dir)
+
         command.append('--use-existing-config')
 
         if routing_suffix:
