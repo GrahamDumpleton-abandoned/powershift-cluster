@@ -578,6 +578,9 @@ def volumes_create(ctx, name, path, size, claim):
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
 
+    else:
+        path = os.path.abspath(path)
+
     # Define the persistent volume.
 
     pv = resources.v1_PersistentVolume(
