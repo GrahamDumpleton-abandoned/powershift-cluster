@@ -493,10 +493,8 @@ def volumes_create(ctx, name, path, size, claim):
 
     if path is None:
         path = posixpath.join(profiles, profile, 'volumes', name)
-
-    os.makedirs(path, exist_ok=True)
-
-    os.chmod(path, 0o777)
+        os.makedirs(path, exist_ok=True)
+        os.chmod(path, 0o777)
 
     pv = resources.v1_PersistentVolume(
         metadata=resources.v1_ObjectMeta(name=name),
