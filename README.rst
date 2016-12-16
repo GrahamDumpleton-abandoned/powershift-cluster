@@ -8,7 +8,6 @@ package being installed, along with the ``powershift`` command line client
 contained in that package. The addon commands from this package will be
 automatically registered with the ``powershift`` command line tool.
 
-
 Available commands
 ------------------
 
