@@ -11,7 +11,6 @@ import tempfile
 
 from glob import glob
 
-import docker
 import click
 
 import requests.packages.urllib3
@@ -41,14 +40,11 @@ def execute_and_capture(command):
             universal_newlines=True)
 
 def active_instance():
-    try:
-        client = docker.from_env()
-        instance = client.containers.get('origin')
-        if instance.status == 'running':
-            return instance
+    container = execute_and_capture('docker ps -f name=origin -q')
+    container = container.strip()
 
-    except docker.errors.NotFound:
-        pass
+    if container:
+        return container
 
 def cluster_running():
     return active_instance() is not None
@@ -448,16 +444,7 @@ def status(ctx):
         click.echo('Failed: Cannot find active profile.')
         ctx.exit(1)
 
-    # Dump out details about what OpenShift image and version we are
-    # using by querying the meta data of the Docker image itself.
-
-    image = instance.attrs['Config']['Image']
-    built = instance.attrs['Config']['Labels']['build-date']
-
     click.echo('Status: Running')
-    click.echo('Profile Name: %s' % profile)
-    click.echo('OpenShift Image: %s' % image)
-    click.echo('Build Date: %s' % built)
 
 @cluster.command()
 @click.pass_context
