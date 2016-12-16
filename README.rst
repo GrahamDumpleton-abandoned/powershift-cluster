@@ -1,7 +1,7 @@
 This package provides an addon for the PowerShift CLI for managing a local
-OpenShift cluster. The commands provider a layer around the ``oc cluster
+OpenShift cluster. The commands provide a layer around the ``oc cluster
 up`` command, adding the ability to easily maintain persistent profiles for
-multiple instances of OpenShift.
+multiple local instances of OpenShift running on a Docker service.
 
 Installing this package will automatically result in the ``powershift``
 package being installed, along with the ``powershift`` command line client
@@ -79,3 +79,5 @@ To see all available command you can use inbuilt help features of the
       create  Create a new persistent volume.
       list    List the available peristent volumes.
 
+Use the ``--help`` option on individual commands to see what the command
+does and what further options can be supplied.
