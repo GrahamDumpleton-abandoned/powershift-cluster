@@ -572,6 +572,10 @@ def volumes_create(ctx, name, path, size, claim):
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
 
+    if sys.platform == 'win32':
+        drive, path = os.path.splitdrive(path)
+        path = '/%s%s' % (drive[:-1], path.replace('\\', '/'))
+
     # Define the persistent volume.
 
     pv = resources.v1_PersistentVolume(
