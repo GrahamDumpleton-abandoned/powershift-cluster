@@ -327,11 +327,12 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         command = ' '.join(command)
 
-        result = execute(command)
+        if sys.platform != 'win32':
+            result = execute(command)
 
-        if result.returncode != 0:
-            click.echo('Failed: Unable to create admin user.')
-            ctx.exit(result.returncode)
+            if result.returncode != 0:
+                click.echo('Failed: Unable to create admin user.')
+                ctx.exit(result.returncode)
 
     else:
         click.echo('Starting')
