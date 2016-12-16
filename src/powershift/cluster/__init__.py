@@ -119,7 +119,7 @@ def cluster(ctx):
 @click.argument('profile', default='default')
 @click.pass_context
 def up(ctx, profile, image, version, routing_suffix, logging, metrics,
-        server_loglevel):
+        loglevel, server_loglevel):
 
     """
     Starts up an OpenShift cluster.
