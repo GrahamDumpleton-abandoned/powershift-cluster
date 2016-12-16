@@ -233,9 +233,9 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         if sys.platform == 'win32':
             data_dir = os.path.splitdrive(data_dir)[1]
-            data_dir.replace('\\', '/')
+            data_dir = data_dir.replace('\\', '/')
             config_dir = os.path.splitdrive(config_dir)[1]
-            config_dir.replace('\\', '/')
+            config_dir = config_dir.replace('\\', '/')
 
         command.append('--host-data-dir "%s"' % data_dir)
         command.append('--host-config-dir "%s"' % config_dir)
