@@ -112,6 +112,8 @@ def cluster(ctx):
     help='Install logging (experimental).')
 @click.option('--metrics', is_flag=True,
     help='Install metrics (experimental).')
+@click.option('--loglevel', default=0, type=int,
+    help='Log level for the OpenShift client.')
 @click.option('--server-loglevel', default=0, type=int,
     help='Log level for the OpenShift server.')
 @click.argument('profile', default='default')
@@ -254,7 +256,11 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         if metrics:
             command.append('--metrics')
 
-        command.append('--server-loglevel %d' % server_loglevel)
+        if loglevel:
+            command.append('--loglevel %d' % loglevel)
+
+        if server_loglevel:
+            command.append('--server-loglevel %d' % server_loglevel)
 
         if ipaddr != '127.0.0.1':
             command.append('--forward-ports=false')
