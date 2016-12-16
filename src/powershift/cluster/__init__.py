@@ -223,11 +223,18 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         command = ['oc cluster up']
 
-        command.append('--public-hostname "%s"' % ipaddr)
+        if sys.platform == 'win32':
+            if ipaddr != '127.0.0.1':
+                command.append('--public-hostname "%s"' % ipaddr)
+        else:
+            command.append('--public-hostname "%s"' % ipaddr)
+
         command.append('--host-data-dir "%s"' % data_dir)
         command.append('--host-config-dir "%s"' % config_dir)
-        command.append('--routing-suffix "%s"' % routing_suffix)
         command.append('--use-existing-config')
+
+        if routing_suffix:
+            command.append('--routing-suffix "%s"' % routing_suffix)
 
         if image:
             command.append('--image "%s"' % image)
