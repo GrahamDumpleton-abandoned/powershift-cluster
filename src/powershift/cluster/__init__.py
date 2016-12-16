@@ -156,6 +156,8 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
     """
 
+    # Ensure that the root directory and profiles directory exist.
+
     root_dir = ctx.obj['ROOTDIR']
     profiles_dir = ctx.obj['PROFILES']
 
@@ -165,6 +167,9 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
     except IOError:
         pass
+
+    # Check if there is an instance already running for a different
+    # profile or of the request profile.
 
     instance = active_instance()
 
@@ -183,6 +188,8 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
     if profile not in profile_names(ctx):
         click.echo('Creating')
 
+        # Create the directory structure for a specific profile.
+
         try:
             data_dir = os.path.join(profile_dir, 'data')
             config_dir = os.path.join(profile_dir, 'config')
@@ -197,10 +204,20 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             click.echo('Failed: Cannot create profile directories.')
             sys.exit(1)
 
+        # On Linux the Docker service will have its own IP address, so
+        # need to determine that. Otherwise use 127.0.0.1 as the IP
+        # for the OpenShift instance.
+
         if sys.platform == 'linux':
             ipaddr = execute_and_capture('which-ip docker0')
         else:
             ipaddr = '127.0.0.1'
+
+        # Use the same IP address for applicaton routes unless an
+        # alternative is provided. We use xip.io so can easily map
+        # everything back to the same IP. If an alternative hostname was
+        # provided, then is up to user to create a wildcard DNS entry
+        # that maps to the necessary IP address.
 
         if routing_suffix is None:
             if ipaddr != '127.0.0.1':
@@ -235,6 +252,10 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         command = ' '.join(command)
 
+        # Save away the command line used for 'oc cluster up' so we can
+        # use it for subsequent runs without needing to work out options
+        # again, or supply them on the command line.
+
         run_file = os.path.join(profile_dir, 'run')
 
         with open(run_file, 'w') as fp:
@@ -242,11 +263,17 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         click.echo(command)
 
+        # Run 'oc cluster up' to start up the instance.
+
         result = execute(command)
 
         if result.returncode != 0:
             click.echo('Failed: The "oc cluster up" command failed.')
             ctx.exit(result.returncode)
+
+        # Grant sudoer role to the developer so they do not switch to
+        # the admin account. Instead can use user impersonation. We
+        # actually rely on this for when creating volumes.
 
         context = server_context()
 
@@ -268,6 +295,8 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             click.echo('Failed: Unable to assign sudoer role to developer.')
             ctx.exit(result.returncode)
 
+        # Setup an admin account that can be used from the web console.
+
         command = ['oc adm policy']
 
         command.append('add-cluster-role-to-user cluster-admin admin')
@@ -284,6 +313,9 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
     else:
         click.echo('Starting')
 
+        # Start up the OpenShift instance using the saved startup
+        # command from when the instance was first created.
+
         run_file = os.path.join(profile_dir, 'run')
 
         with open(run_file) as fp:
@@ -296,6 +328,8 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         if result.returncode != 0:
             click.echo('Failed: The "oc cluster up" command failed.')
             ctx.exit(result.returncode)
+
+    # Record what the current active profile is.
 
     activate_profile(ctx, profile)
 
@@ -316,6 +350,9 @@ def down(ctx):
         ctx.exit(1)
 
     click.echo('Stopping')
+
+    # Stop activate instance with 'oc cluster down' and remove the
+    # record of what the active profile is.
 
     result = execute('oc cluster down')
 
@@ -345,6 +382,9 @@ def destroy(ctx, profile):
 
     click.confirm('Destroy profile %r?' % profile, abort=True)
 
+    # If the profile to be destroyed is the current active one then we
+    # need to make sure it is stopped before removing anything.
+
     if profile == active_profile(ctx):
         click.echo('Stopping')
 
@@ -363,6 +403,10 @@ def destroy(ctx, profile):
     directory = os.path.join(profiles, profile)
 
     click.echo('Removing: %s' % directory)
+
+    # Remove the profile directory. There may be a risk this will not
+    # completely work if files were created in a volume which had
+    # ownership or permissions that prevent removal.
 
     shutil.rmtree(directory)
 
@@ -404,6 +448,9 @@ def status(ctx):
         click.echo('Failed: Cannot find active profile.')
         ctx.exit(1)
 
+    # Dump out details about what OpenShift image and version we are
+    # using by querying the meta data of the Docker image itself.
+
     image = instance.attrs['Config']['Image']
     built = instance.attrs['Config']['Labels']['build-date']
 
@@ -423,6 +470,9 @@ def ssh(ctx):
     if not cluster_running():
         click.echo('Stopped')
         ctx.exit(1)
+
+    # Use the docker command to do this as the 'docker' module does not
+    # seem to work when executing an interactive shell bound to a tty.
 
     result = execute('docker exec -it origin /bin/bash')
 
@@ -478,10 +528,17 @@ def volumes_create(ctx, name, path, size, claim):
     profiles = ctx.obj['PROFILES']
     profile = active_profile(ctx)
 
+    # Only admin user can manipulate volumes so ensure we impersonate
+    # the system:admin user when doing queries and updates.
+
     server = server_url()
     token = server_token()
 
     client = endpoints.Client(server, token, user='system:admin', verify=False)
+
+    # Need to make sure the named persistent volume doesn't already
+    # exist so we try and query details for it and if that fails we
+    # should be good to go.
 
     try:
         pv = client.api.v1.persistentvolumes(name=name).get()
@@ -491,10 +548,18 @@ def volumes_create(ctx, name, path, size, claim):
         click.echo('Failed: Persistent volume name already in use.')
         ctx.exit(1)
 
+    # If we are generating the path for a volume ourselves, then we also
+    # create the directory and set the permissions. If the path is
+    # supplied then expect the directory to exist. When creating the
+    # directory we make it writable to everyone else an arbitrary user
+    # in the container will not be able to write to it.
+
     if path is None:
         path = posixpath.join(profiles, profile, 'volumes', name)
         os.makedirs(path, exist_ok=True)
         os.chmod(path, 0o777)
+
+    # Define the persistent volume.
 
     pv = resources.v1_PersistentVolume(
         metadata=resources.v1_ObjectMeta(name=name),
@@ -506,6 +571,8 @@ def volumes_create(ctx, name, path, size, claim):
         )
     )
 
+    # Add a claim reference if one is provided.
+
     if claim is not None:
         ref = resources.v1_ObjectReference(
             kind='PersistentVolumeClaim',
@@ -515,7 +582,11 @@ def volumes_create(ctx, name, path, size, claim):
 
         pv.spec.claim_ref = ref
 
+    # Create the persistent volume.
+
     client.api.v1.persistentvolumes.post(body=pv)
+
+    # Output the details of the persistent volume created.
 
     result = execute('oc describe pv "%s" --as system:admin' % name)
 
@@ -532,6 +603,8 @@ def volumes_list(ctx):
     if not cluster_running():
         click.echo('Stopped')
         ctx.exit(1)
+
+    # Output the details of all persistent volumes.
 
     result = execute('oc describe pv --as system:admin')
 
