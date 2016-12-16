@@ -341,7 +341,7 @@ def down(ctx):
 
     instance = active_instance()
 
-    if instance is None or instance.status != 'running':
+    if instance is None:
         click.echo('Stopped')
         ctx.exit(1)
 
