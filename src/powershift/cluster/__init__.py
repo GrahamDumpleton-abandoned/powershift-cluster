@@ -301,10 +301,12 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         context = 'default/%s/system:admin' % cluster
 
+        kubeconfig = os.path.join(config_dir, 'master', 'admin.kubeconfig')
+
         command = ['oc adm policy']
 
         command.append('add-cluster-role-to-group sudoer system:authenticated')
-        command.append('--config "%s/master/admin.kubeconfig"' % config_dir)
+        command.append('--config "%s"' % kubeconfig)
         command.append('--context "%s"' % context)
 
         command = ' '.join(command)
