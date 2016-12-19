@@ -8,6 +8,7 @@ import subprocess
 import re
 import posixpath
 import tempfile
+import ssl
 
 from glob import glob
 
@@ -497,6 +498,37 @@ def ssh(ctx):
 
     ctx.exit(result.returncode)
 
+TLS_MINIMUM_VERSION_WARNING = """Warning: TLS 1.2 is not supported by Python.
+
+The Python installation you are using does not support TLS 1.2 for secure
+socket connections. From OpenShift Origin 1.4 (OCP 3.4), any HTTP clients
+using the OpenShift REST API endpoint must support TLS 1.2 as a minimum.
+
+This problem can arise on MacOS X, which provides an old version of
+OpenSSL. This means that on MacOS X you cannot use Python 3.5 from the
+Python Software Foundation (PSF) as it links to the system OpenSSL
+libraries.
+
+If the command you are running fails with any error about TLS version, then
+you will need to update your Python installation with a compatible version.
+
+Your options if using MacOS X are to install and use Python 3.6 from the
+PSF, or install Python 3.5 or later using HomeBrew (http://brew.sh).
+
+"""
+
+def check_tls_version(ctx):
+    # As the REST API is being used we need to have at least TLS 1.2 if
+    # we are going to talk to an OpenShift instance based on OpenShft
+    # Origin 1.4 (OCP 3.4) or later. This is an issue on MacOS X where
+    # the OpenSSL supplied with the operating system is too old and
+    # doesn't support TLS 1.2. In this case if need TLS 1.2 will fail
+    # and give an explaination of minimum requirements for Python
+    # installation.
+
+    if ssl.OPENSSL_VERSION_INFO[:3] < (1, 0, 1):
+        click.echo(TLS_MINIMUM_VERSION_WARNING)
+
 @cluster.group()
 @click.pass_context
 def volumes(ctx):
@@ -543,6 +575,10 @@ def volumes_create(ctx, name, path, size, claim):
     if not cluster_running():
         click.echo('Stopped')
         ctx.exit(1)
+
+    # Using REST API so check TLS version.
+
+    check_tls_version(ctx)
 
     profiles = ctx.obj['PROFILES']
     profile = active_profile(ctx)
