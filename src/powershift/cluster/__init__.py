@@ -16,7 +16,7 @@ import click
 import requests.packages.urllib3
 requests.packages.urllib3.disable_warnings()
 
-from ..cli import root, server_url, server_context, server_token
+from ..cli import root, server_url, session_context, session_token
 
 from .. import resources
 from .. import endpoints
@@ -301,7 +301,7 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         # the admin account. Instead can use user impersonation. We
         # actually rely on this for when creating volumes.
 
-        context = server_context()
+        context = session_context()
 
         project, cluster, user = context.strip().split('/')
 
@@ -551,7 +551,7 @@ def volumes_create(ctx, name, path, size, claim):
     # the system:admin user when doing queries and updates.
 
     server = server_url()
-    token = server_token()
+    token = session_token()
 
     client = endpoints.Client(server, token, user='system:admin', verify=False)
 
