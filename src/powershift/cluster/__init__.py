@@ -219,7 +219,13 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         # for the OpenShift instance.
 
         if sys.platform == 'linux':
-            ipaddr = execute_and_capture('which-ip docker0')
+            ifconfig = execute_and_capture('/usr/sbin/ifconfig docker0')
+            for line in ifconfig:
+                if 'inet' in line:
+                    ipaddr = line.split()[1]
+                    break
+            else:
+                ipaddr = '127.0.0.1'
         else:
             ipaddr = '127.0.0.1'
 
