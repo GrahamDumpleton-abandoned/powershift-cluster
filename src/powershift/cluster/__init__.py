@@ -220,7 +220,7 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         if sys.platform == 'linux':
             ifconfig = execute_and_capture('/usr/sbin/ifconfig docker0')
-            for line in ifconfig:
+            for line in ifconfig.split('\n'):
                 if 'inet' in line:
                     ipaddr = line.split()[1]
                     break
