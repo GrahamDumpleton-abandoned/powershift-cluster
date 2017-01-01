@@ -17,17 +17,6 @@ import click
 
 from ..cli import root, server_url, session_context, session_token
 
-if sys.platform == 'win32':
-    SAVEDIR='PowerShift'
-else:
-    SAVEDIR='.powershift'
-
-DEFAULT_ROOTDIR = os.path.expanduser(os.path.join('~', SAVEDIR))
-ROOTDIR = os.environ.get('POWERSHIFT_HOME_DIR', DEFAULT_ROOTDIR)
-
-DEFAULT_PROFILES = os.path.join(ROOTDIR, 'profiles')
-PROFILES = os.environ.get('POWERSHIFT_PROFILES_DIR', DEFAULT_PROFILES)
-
 def execute(command):
     return subprocess.run(shlex.split(command))
 
@@ -116,7 +105,10 @@ def cluster(ctx):
 
     """
 
-    ctx.obj['ROOTDIR'] = ROOTDIR
+    ROOTDIR = ctx.obj['ROOTDIR']
+    DEFAULT_PROFILES = os.path.join(ROOTDIR, 'profiles')
+    PROFILES = os.environ.get('POWERSHIFT_PROFILES_DIR', DEFAULT_PROFILES)
+
     ctx.obj['PROFILES'] = PROFILES
 
 @cluster.command()
