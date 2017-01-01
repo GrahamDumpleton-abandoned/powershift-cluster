@@ -459,9 +459,9 @@ def list(ctx):
 
     for profile in profiles:
         if profile == current:
-            print(profile + ' (active)')
+            click.echo(profile + ' (active)')
         else:
-            print(profile)
+            click.echo(profile)
 
 @cluster.command()
 @click.pass_context
