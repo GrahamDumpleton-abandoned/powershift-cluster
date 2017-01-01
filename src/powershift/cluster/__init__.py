@@ -9,18 +9,13 @@ import re
 import posixpath
 import tempfile
 import ssl
+import json
 
 from glob import glob
 
 import click
 
-import requests.packages.urllib3
-requests.packages.urllib3.disable_warnings()
-
 from ..cli import root, server_url, session_context, session_token
-
-from .. import resources
-from .. import endpoints
 
 if sys.platform == 'win32':
     SAVEDIR='PowerShift'
@@ -35,6 +30,17 @@ PROFILES = os.environ.get('POWERSHIFT_PROFILES_DIR', DEFAULT_PROFILES)
 
 def execute(command):
     return subprocess.run(shlex.split(command))
+
+def execute_with_input(command, input):
+    p = subprocess.Popen(shlex.split(command),  stdin=subprocess.PIPE)
+    if not isinstance(input, bytes):
+        input = input.encode('UTF-8')
+    p.communicate(input=input)
+    return p
+
+def execute_and_discard(command):
+    return subprocess.run(shlex.split(command), stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
 
 def execute_and_capture(command):
     return subprocess.check_output(shlex.split(command),
@@ -504,37 +510,6 @@ def ssh(ctx):
 
     ctx.exit(result.returncode)
 
-TLS_MINIMUM_VERSION_WARNING = """Warning: TLS 1.2 is not supported by Python.
-
-The Python installation you are using does not support TLS 1.2 for secure
-socket connections. From OpenShift Origin 1.4 (OCP 3.4), any HTTP clients
-using the OpenShift REST API endpoint must support TLS 1.2 as a minimum.
-
-This problem can arise on MacOS X, which provides an old version of
-OpenSSL. This means that on MacOS X you cannot use Python 3.5 from the
-Python Software Foundation (PSF) as it links to the system OpenSSL
-libraries.
-
-If the command you are running fails with any error about TLS version, then
-you will need to update your Python installation with a compatible version.
-
-Your options if using MacOS X are to install and use Python 3.6 from the
-PSF, or install Python 3.5 or later using HomeBrew (http://brew.sh).
-
-"""
-
-def check_tls_version(ctx):
-    # As the REST API is being used we need to have at least TLS 1.2 if
-    # we are going to talk to an OpenShift instance based on OpenShft
-    # Origin 1.4 (OCP 3.4) or later. This is an issue on MacOS X where
-    # the OpenSSL supplied with the operating system is too old and
-    # doesn't support TLS 1.2. In this case if need TLS 1.2 will fail
-    # and give an explaination of minimum requirements for Python
-    # installation.
-
-    if ssl.OPENSSL_VERSION_INFO[:3] < (1, 0, 1):
-        click.echo(TLS_MINIMUM_VERSION_WARNING)
-
 @cluster.group()
 @click.pass_context
 def volumes(ctx):
@@ -582,30 +557,18 @@ def volumes_create(ctx, name, path, size, claim):
         click.echo('Stopped')
         ctx.exit(1)
 
-    # Using REST API so check TLS version.
-
-    check_tls_version(ctx)
-
     profiles = ctx.obj['PROFILES']
     profile = active_profile(ctx)
-
-    # Only admin user can manipulate volumes so ensure we impersonate
-    # the system:admin user when doing queries and updates.
-
-    server = server_url()
-    token = session_token()
-
-    client = endpoints.Client(server, token, user='system:admin', verify=False)
 
     # Need to make sure the named persistent volume doesn't already
     # exist so we try and query details for it and if that fails we
     # should be good to go.
 
-    try:
-        pv = client.api.v1.persistentvolumes(name=name).get()
-    except Exception:
-        pass
-    else:
+    command = 'oc get pv %s --as system:admin' % name
+
+    result = execute_and_discard(command)
+
+    if result.returncode == 0:
         click.echo('Failed: Persistent volume name already in use.')
         ctx.exit(1)
 
@@ -625,31 +588,41 @@ def volumes_create(ctx, name, path, size, claim):
 
     # Define the persistent volume.
 
-    pv = resources.v1_PersistentVolume(
-        metadata=resources.v1_ObjectMeta(name=name),
-        spec=resources.v1_PersistentVolumeSpec(
-            capacity=resources.Resource(storage=size),
-            host_path=resources.v1_HostPathVolumeSource(
-                path=container_path(path)),
-            access_modes=['ReadWriteOnce','ReadWriteMany'],
-            persistent_volume_reclaim_policy='Retain'
-        )
-    )
+    pv = {
+        'kind': 'PersistentVolume',
+        'apiVersion': 'v1',
+        'metadata': {
+            'name': name
+        },
+        'spec': {
+            'accessModes': ['ReadWriteOnce', 'ReadWriteMany'],
+            'capacity': {'storage': size},
+            'hostPath': {'path': container_path(path)},
+            'persistentVolumeReclaimPolicy': 'Retain'
+        }
+    }
 
     # Add a claim reference if one is provided.
 
     if claim is not None:
-        ref = resources.v1_ObjectReference(
-            kind='PersistentVolumeClaim',
-            namespace=claim[0],
-            name=claim[1]
-        )
+        ref = {
+            'kind': 'PersistentVolumeClaim',
+            'apiVersion': 'v1',
+            'namespace': claim[0],
+            'name': claim[1]
+        }
 
-        pv.spec.claim_ref = ref
+        pv['spec']['claim_ref'] = ref
 
     # Create the persistent volume.
 
-    client.api.v1.persistentvolumes.post(body=pv)
+    command = 'oc create -f - --as system:admin'
+
+    result = execute_with_input(command, json.dumps(pv))
+
+    if result.returncode != 0:
+        click.echo('Failed: Persistent volume creation failed.')
+        ctx.exit(result.returncode)
 
     # Output the details of the persistent volume created.
 

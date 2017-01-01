@@ -8,7 +8,11 @@ long_description = open('README.rst').read()
 classifiers = [
     'Development Status :: 4 - Beta',
     'License :: OSI Approved :: BSD License',
+    'Programming Language :: Python :: 2',
+    'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.3',
+    'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: 3.5',
     'Programming Language :: Python :: 3.6',
 ]
@@ -26,7 +30,7 @@ setup_kwargs = dict(
     keywords='openshift kubernetes',
     packages=['powershift', 'powershift.cluster'],
     package_dir={'powershift': 'src/powershift'},
-    install_requires=['powershift>=1.3.8', 'powershift-cli'],
+    install_requires=['powershift-cli'],
     entry_points = {'powershift_cli_plugins': ['cluster = powershift.cluster']},
 )
 
