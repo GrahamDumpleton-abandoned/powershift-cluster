@@ -169,12 +169,8 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
     root_dir = ctx.obj['ROOTDIR']
     profiles_dir = ctx.obj['PROFILES']
 
-    try:
-        os.mkdir(root_dir)
-        os.mkdir(profiles_dir)
-
-    except IOError:
-        pass
+    os.makedirs(root_dir, exist_ok=True)
+    os.makedirs(profiles_dir, exist_ok=True)
 
     # Check if there is an instance already running for a different
     # profile or of the request profile.
