@@ -171,8 +171,15 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
     root_dir = ctx.obj['ROOTDIR']
     profiles_dir = ctx.obj['PROFILES']
 
-    os.makedirs(root_dir, exist_ok=True)
-    os.makedirs(profiles_dir, exist_ok=True)
+    try:
+        os.mkdir(root_dir)
+    except OSError:
+        pass
+
+    try:
+        os.mkdir(profiles_dir)
+    except OSError:
+        pass
 
     # Check if there is an instance already running for a different
     # profile or of the request profile.
@@ -206,7 +213,7 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             os.mkdir(config_dir)
             os.mkdir(volumes_dir)
 
-        except IOError:
+        except OSError:
             click.echo('Failed: Cannot create profile directories.')
             sys.exit(1)
 
@@ -643,7 +650,7 @@ def volumes_create(ctx, name, path, size, claim):
 
     if path is None:
         path = posixpath.join(profiles, profile, 'volumes', name)
-        os.makedirs(path, exist_ok=True)
+        os.mkdir(path)
         os.chmod(path, 0o777)
 
     else:
