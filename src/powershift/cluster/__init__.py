@@ -360,6 +360,44 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             click.echo('Failed: Unable to create admin user.')
             ctx.exit(result.returncode)
 
+        # Create a context named after the profile to allow for reuse.
+
+        command = ['oc adm config']
+        command.append('set-cluster powershift-%s' % profile)
+        command.append('--server=%s' % server_url())
+        command.append('--insecure-skip-tls-verify=true')
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to setup cluster in kubeconfig.')
+            ctx.exit(result.returncode)
+ 
+        command = ['oc adm config']
+        command.append('set-credentials developer@powershift-%s' % profile)
+        command.append('--token=%s' % session_token())
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to set token for context in kubeconfig.')
+            ctx.exit(result.returncode)
+
+        command = ['oc adm config']
+        command.append('set-context powershift-%s' % profile)
+        command.append('--cluster=powershift-%s' % profile)
+        command.append('--user=developer@powershift-%s' % profile)
+        command.append('--namespace=myproject')
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to setup context in kubeconfig.')
+            ctx.exit(result.returncode)
+
     else:
         click.echo('Starting')
 
@@ -382,6 +420,18 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         if result.returncode != 0:
             click.echo('Failed: The "oc cluster up" command failed.')
             ctx.exit(result.returncode)
+
+    # Switch to context for this profile.
+
+    command = ['oc adm config']
+    command.append('use-context powershift-%s' % profile)
+    command = ' '.join(command)
+
+    result = execute(command)
+
+    if result.returncode != 0:
+        click.echo('Failed: Unable to set context for profile.')
+        ctx.exit(result.returncode)
 
     # Record what the current active profile is.
 
