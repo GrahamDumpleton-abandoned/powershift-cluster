@@ -307,18 +307,9 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
         # actually rely on this for when creating volumes. Note that on
-        # Linux we have to temporarily make the 'admin.kubeconfig' file
-        # readable to others so we can access it from the local system.
-
-        master = '/var/lib/origin/openshift.local.config/master'
-        kubeconfig = '%s/admin.kubeconfig' % master
-
-        #if sys.platform == 'linux':
-        #    result = execute('docker exec origin chmod o+r %s' % kubeconfig)
-        #
-        #    if result.returncode != 0:
-        #        click.echo('Failed: Unable to adjust kubeconfig access.')
-        #        ctx.exit(result.returncode)
+        # Linux we have to go into the container and change owner and
+        # group of files so can read them, but also so can later remove
+        # the profile completely.
 
         if sys.platform == 'linux':
             command = ('docker exec origin chown -R %d:%d '
@@ -338,12 +329,12 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         context = 'default/%s/system:admin' % cluster
 
-        local_kubeconfig = os.path.join(config_dir, 'master', 'admin.kubeconfig')
+        kubeconfig = os.path.join(config_dir, 'master', 'admin.kubeconfig')
 
         command = ['oc adm policy']
 
         command.append('add-cluster-role-to-group sudoer system:authenticated')
-        command.append('--config "%s"' % local_kubeconfig)
+        command.append('--config "%s"' % kubeconfig)
         command.append('--context "%s"' % context)
 
         command = ' '.join(command)
@@ -353,13 +344,6 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         if result.returncode != 0:
             click.echo('Failed: Unable to assign sudoer role to developer.')
             ctx.exit(result.returncode)
-
-        #if sys.platform == 'linux':
-        #    result = execute('docker exec origin chmod o-r %s' % kubeconfig)
-        #
-        #    if result.returncode != 0:
-        #        click.echo('Failed: Unable to restore kubeconfig access.')
-        #        ctx.exit(result.returncode)
 
         # Setup an admin account that can be used from the web console.
 
