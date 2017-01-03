@@ -313,8 +313,20 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         master = '/var/lib/origin/openshift.local.config/master'
         kubeconfig = '%s/admin.kubeconfig' % master
 
+        #if sys.platform == 'linux':
+        #    result = execute('docker exec origin chmod o+r %s' % kubeconfig)
+        #
+        #    if result.returncode != 0:
+        #        click.echo('Failed: Unable to adjust kubeconfig access.')
+        #        ctx.exit(result.returncode)
+
         if sys.platform == 'linux':
-            result = execute('docker exec origin chmod o+r %s' % kubeconfig)
+            command = ('docker exec origin chown -R %d:%d '
+                    '/var/lib/origin/openshift.local.config '
+                    '/var/lib/origin/openshift.local.etcd' % (
+                    os.getuid(), os.getgid()))
+
+            result = execute(command)
 
             if result.returncode != 0:
                 click.echo('Failed: Unable to adjust kubeconfig access.')
@@ -342,12 +354,12 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             click.echo('Failed: Unable to assign sudoer role to developer.')
             ctx.exit(result.returncode)
 
-        if sys.platform == 'linux':
-            result = execute('docker exec origin chmod o-r %s' % kubeconfig)
-
-            if result.returncode != 0:
-                click.echo('Failed: Unable to restore kubeconfig access.')
-                ctx.exit(result.returncode)
+        #if sys.platform == 'linux':
+        #    result = execute('docker exec origin chmod o-r %s' % kubeconfig)
+        #
+        #    if result.returncode != 0:
+        #        click.echo('Failed: Unable to restore kubeconfig access.')
+        #        ctx.exit(result.returncode)
 
         # Setup an admin account that can be used from the web console.
 
