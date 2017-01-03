@@ -126,10 +126,12 @@ def cluster(ctx):
     help='Log level for the OpenShift client.')
 @click.option('--server-loglevel', default=0, type=int,
     help='Log level for the OpenShift server.')
+@click.option('--env', '-e', multiple=True,
+    help='Specify environment variables to set.')
 @click.argument('profile', default='default')
 @click.pass_context
 def up(ctx, profile, image, version, routing_suffix, logging, metrics,
-        loglevel, server_loglevel):
+        loglevel, server_loglevel, env):
 
     """
     Starts up an OpenShift cluster.
@@ -274,6 +276,10 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
         if server_loglevel:
             command.append('--server-loglevel %d' % server_loglevel)
 
+        if env:
+            for item in env:
+                command.append('--env "%s"' % item)
+
         if ipaddr != '127.0.0.1':
             command.append('--forward-ports=false')
 
@@ -368,6 +374,10 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
         with open(run_file) as fp:
             command = fp.read().strip()
+
+        if env:
+            for item in env:
+                command += ' --env "%s"' % item
 
         click.echo(command)
 
