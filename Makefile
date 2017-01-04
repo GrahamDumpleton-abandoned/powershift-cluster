@@ -3,10 +3,10 @@
 all :
 
 install : all
-	pip3 install -U .
+	pip install -U .
 
 package :
-	python3 setup.py sdist
+	python setup.py sdist
 
 release : clean package
 	twine upload dist/*
