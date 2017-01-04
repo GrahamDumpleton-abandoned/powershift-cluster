@@ -18,18 +18,22 @@ import click
 from ..cli import root, server_url, session_context, session_token
 
 def execute(command):
-    return subprocess.run(shlex.split(command))
+    p = subprocess.Popen(shlex.split(command))
+    p.communicate()
+    return p
 
 def execute_with_input(command, input):
-    p = subprocess.Popen(shlex.split(command),  stdin=subprocess.PIPE)
+    p = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE)
     if not isinstance(input, bytes):
         input = input.encode('UTF-8')
     p.communicate(input=input)
     return p
 
 def execute_and_discard(command):
-    return subprocess.run(shlex.split(command), stdout=subprocess.PIPE,
+    p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
+    p.communicate()
+    return p
 
 def execute_and_capture(command):
     return subprocess.check_output(shlex.split(command),
@@ -491,7 +495,7 @@ def destroy(ctx, profile):
         click.echo('Invalid: %s' % profile)
         ctx.exit(1)
 
-    click.confirm('Destroy profile %r?' % profile, abort=True)
+    click.confirm('Destroy profile "%s"?' % profile, abort=True)
 
     # If the profile to be destroyed is the current active one then we
     # need to make sure it is stopped before removing anything.
