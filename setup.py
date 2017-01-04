@@ -30,7 +30,7 @@ setup_kwargs = dict(
     keywords='openshift kubernetes',
     packages=['powershift', 'powershift.cluster'],
     package_dir={'powershift': 'src/powershift'},
-    install_requires=['powershift-cli>=1.0.1'],
+    install_requires=['powershift-cli>=1.0.2'],
     entry_points = {'powershift_cli_plugins': ['cluster = powershift.cluster']},
 )
 
