@@ -14,29 +14,38 @@ import json
 from glob import glob
 
 import click
+import passlib.apache
 
 from ..cli import root, server_url, session_context, session_token
 
 def execute(command):
-    p = subprocess.Popen(shlex.split(command))
+    if not isinstance(command, (list, tuple)):
+        command = shlex.split(command)
+    p = subprocess.Popen(command)
     p.communicate()
     return p
 
 def execute_with_input(command, input):
-    p = subprocess.Popen(shlex.split(command), stdin=subprocess.PIPE)
+    if not isinstance(command, (list, tuple)):
+        command = shlex.split(command)
+    p = subprocess.Popen(command, stdin=subprocess.PIPE)
     if not isinstance(input, bytes):
         input = input.encode('UTF-8')
     p.communicate(input=input)
     return p
 
 def execute_and_discard(command):
-    p = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE,
+    if not isinstance(command, (list, tuple)):
+        command = shlex.split(command)
+    p = subprocess.Popen(command, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
     p.communicate()
     return p
 
 def execute_and_capture(command):
-    return subprocess.check_output(shlex.split(command),
+    if not isinstance(command, (list, tuple)):
+        command = shlex.split(command)
+    return subprocess.check_output(command,
             universal_newlines=True)
 
 def container_path(path):
@@ -115,7 +124,7 @@ def cluster(ctx):
 
     ctx.obj['PROFILES'] = PROFILES
 
-@cluster.command()
+@cluster.command('up')
 @click.option('--image', default=None,
     help='Specify alternate image to use for OpenShift.')
 @click.option('--version', default=None,
@@ -134,8 +143,8 @@ def cluster(ctx):
     help='Specify environment variables to set.')
 @click.argument('profile', default='default')
 @click.pass_context
-def up(ctx, profile, image, version, routing_suffix, logging, metrics,
-        loglevel, server_loglevel, env):
+def cluster_up(ctx, profile, image, version, routing_suffix, logging,
+        metrics, loglevel, server_loglevel, env):
 
     """
     Starts up an OpenShift cluster.
@@ -458,9 +467,9 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
 
     click.echo('Started')
 
-@cluster.command()
+@cluster.command('down')
 @click.pass_context
-def down(ctx):
+def cluster_down(ctx):
     """
     Stops the active OpenShift cluster.
 
@@ -486,12 +495,13 @@ def down(ctx):
     else:
         click.echo('Failed: The "oc cluster down" command failed.')
 
-    ctx.exit(result.returncode)
+    if result.returncode != 0:
+        ctx.exit(result.returncode)
 
-@cluster.command()
+@cluster.command('destroy')
 @click.argument('profile')
 @click.pass_context
-def destroy(ctx, profile):
+def cluster_destroy(ctx, profile):
     """
     Destroys the named OpenShift cluster.
 
@@ -533,9 +543,9 @@ def destroy(ctx, profile):
 
     shutil.rmtree(directory)
 
-@cluster.command()
+@cluster.command('list')
 @click.pass_context
-def list(ctx):
+def cluster_list(ctx):
     """
     List the available OpenShift cluster profiles.
 
@@ -551,9 +561,9 @@ def list(ctx):
         else:
             click.echo(profile)
 
-@cluster.command()
+@cluster.command('status')
 @click.pass_context
-def status(ctx):
+def cluster_status(ctx):
     """
     Displays the status of the OpenShift cluster.
 
@@ -573,9 +583,9 @@ def status(ctx):
 
     click.echo('Status: Running')
 
-@cluster.command()
+@cluster.command('ssh')
 @click.pass_context
-def ssh(ctx):
+def cluster_ssh(ctx):
     """
     Opens a shell session in the OpenShift master node.
 
@@ -592,9 +602,9 @@ def ssh(ctx):
 
     ctx.exit(result.returncode)
 
-@cluster.group()
+@cluster.group('volumes')
 @click.pass_context
-def volumes(ctx):
+def cluster_volumes(ctx):
     """
     Manage persistent volumes for the cluster.
 
@@ -620,7 +630,7 @@ class VolumeSize(click.ParamType):
             self.fail('%s is not a valid volume size' % value, param, ctx)
         return value
 
-@volumes.command('create')
+@cluster_volumes.command('create')
 @click.option('--path', default=None, type=click.Path(resolve_path=True),
     help='Specify a path for the persistent volume')
 @click.option('--size', default='10Gi', type=VolumeSize(),
@@ -629,7 +639,7 @@ class VolumeSize(click.ParamType):
     help='Assign the persistent volume a claim reference.')
 @click.argument('name')
 @click.pass_context
-def volumes_create(ctx, name, path, size, claim):
+def cluster_volumes_create(ctx, name, path, size, claim):
     """
     Create a new persistent volume.
 
@@ -710,9 +720,9 @@ def volumes_create(ctx, name, path, size, claim):
         click.echo('Failed: Persistent volume creation failed.')
         ctx.exit(result.returncode)
 
-@volumes.command('list')
+@cluster_volumes.command('list')
 @click.pass_context
-def volumes_list(ctx):
+def cluster_volumes_list(ctx):
     """
     List the available peristent volumes.
 
@@ -727,3 +737,242 @@ def volumes_list(ctx):
     result = execute('oc describe pv --as system:admin')
 
     ctx.exit(result.returncode)
+
+@cluster.group('accounts')
+@click.pass_context
+def cluster_accounts(ctx):
+    """
+    Manage accounts database for the cluster.
+
+    """
+
+    pass
+
+enable_htpasswd_script = """#!/bin/bash
+PATCH=`cat <<EOF
+{
+    "oauthConfig": {
+        "identityProviders": [
+            {
+                "challenge": true,
+                "login": true,
+                "mappingMethod": "add",
+                "name": "htpassword",
+                "provider": {
+                    "apiVersion": "v1",
+                    "kind": "HTPasswdPasswordIdentityProvider",
+                    "file": "%(master_dir)s/users.htpasswd"
+                }
+            }
+        ]
+    }
+}
+EOF`
+
+openshift ex config patch %(master_dir)s/master-config-orig.yaml \
+    --patch "$PATCH" > %(master_dir)s/master-config.yaml
+"""
+
+@cluster_accounts.command('install')
+@click.pass_context
+@click.option('--admin-password', hide_input=True,
+    confirmation_prompt=True, prompt='Password (admin)',
+    help='The password for the admin user.')
+@click.option('--developer-password', hide_input=True,
+    confirmation_prompt=True, prompt='Password (developer)',
+    help='The password for the developer.')
+def cluster_accounts_install(ctx, admin_password, developer_password):
+    """
+    Create the initial account database.
+
+    """
+
+    if not cluster_running():
+        click.echo('Stopped')
+        ctx.exit(1)
+
+    profile = active_profile(ctx)
+
+    profiles_dir = ctx.obj['PROFILES']
+    profile_dir = os.path.join(profiles_dir, profile)
+    config_dir = os.path.join(profile_dir, 'config')
+    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+
+    if os.path.exists(passwd_file):
+        click.echo('Failed: The password file already exists.')
+        ctx.exit(1)
+
+    # Create the database file.
+
+    db = passlib.apache.HtpasswdFile(passwd_file, new=True)
+    db.set_password('admin', admin_password)
+    db.set_password('developer', developer_password)
+    db.save()
+
+    # Update the authentication provider.
+ 
+    config = os.path.join(config_dir, 'master', 'master-config.yaml') 
+    config_orig = os.path.join(config_dir, 'master', 'master-config-orig.yaml') 
+
+    shutil.copy(config, config_orig)
+
+    master_dir = '/var/lib/origin/openshift.local.config/master'
+
+    script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
+
+    with open(script_file, 'w') as fp:
+        fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
+
+    command = []
+
+    command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
+    command.extend([posixpath.join(master_dir, 'enable_htpasswd')])
+
+    try:
+        result = execute_and_capture(command)
+    except Exception:
+        click.echo('Failed: Unable to adjust master config.')
+        ctx.exit(result.returncode)
+
+    print(result)
+
+    # Stop and start the cluster.
+
+    ctx.invoke(cluster_down)
+
+    ctx.invoke(cluster_up, profile=profile)
+
+@cluster_accounts.command('password')
+@click.option('--password', prompt=True, hide_input=True,
+    confirmation_prompt=True, help='The new password for the user.')
+@click.argument('user')
+@click.pass_context
+def cluster_accounts_password(ctx, user, password):
+    """
+    Change the password for an account.
+
+    """
+
+    if not cluster_running():
+        click.echo('Stopped')
+        ctx.exit(1)
+
+    profile = active_profile(ctx)
+
+    profiles_dir = ctx.obj['PROFILES']
+    profile_dir = os.path.join(profiles_dir, profile)
+    config_dir = os.path.join(profile_dir, 'config')
+    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+
+    if not os.path.exists(passwd_file):
+        click.echo('Failed: The password file does not exist.')
+        ctx.exit(1)
+
+    db = passlib.apache.HtpasswdFile(passwd_file)
+
+    if db.get_hash(user) is None:
+        click.echo('Failed: No such user exists.')
+        ctx.exit(1)
+
+    db.set_password(user, password)
+    db.save()
+
+@cluster_accounts.command('add')
+@click.option('--password', prompt=True, hide_input=True,
+    confirmation_prompt=True, help='The password for the user.')
+@click.argument('user')
+@click.pass_context
+def cluster_accounts_add(ctx, user, password):
+    """
+    Adds a new user account.
+
+    """
+
+    if not cluster_running():
+        click.echo('Stopped')
+        ctx.exit(1)
+
+    profile = active_profile(ctx)
+
+    profiles_dir = ctx.obj['PROFILES']
+    profile_dir = os.path.join(profiles_dir, profile)
+    config_dir = os.path.join(profile_dir, 'config')
+    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+
+    if not os.path.exists(passwd_file):
+        click.echo('Failed: The password file does not exist.')
+        ctx.exit(1)
+
+    db = passlib.apache.HtpasswdFile(passwd_file)
+
+    if db.get_hash(user) is not None:
+        click.echo('Failed: User already exists.')
+        ctx.exit(1)
+
+    db.set_password(user, password)
+    db.save()
+
+@cluster_accounts.command('remove')
+@click.argument('user')
+@click.pass_context
+def cluster_accounts_remove(ctx, user):
+    """
+    Removes a user account.
+
+    """
+
+    if not cluster_running():
+        click.echo('Stopped')
+        ctx.exit(1)
+
+    profile = active_profile(ctx)
+
+    profiles_dir = ctx.obj['PROFILES']
+    profile_dir = os.path.join(profiles_dir, profile)
+    config_dir = os.path.join(profile_dir, 'config')
+    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+
+    if not os.path.exists(passwd_file):
+        click.echo('Failed: The password file does not exist.')
+        ctx.exit(1)
+
+    if user == 'developer':
+        click.echo('Failed: Cannot remove developer account.')
+        ctx.exit(1)
+
+    click.confirm('Remove user "%s"?' % user, abort=True)
+
+    db = passlib.apache.HtpasswdFile(passwd_file)
+
+    if db.get_hash(user) is None:
+        click.echo('Failed: User does not exist.')
+        ctx.exit(1)
+
+    db.delete(user)
+    db.save()
+
+@cluster_accounts.command('list')
+@click.pass_context
+def cluster_accounts_list(ctx):
+    """
+    List active user accounts.
+
+    """
+
+    if not cluster_running():
+        ctx.exit(1)
+
+    profile = active_profile(ctx)
+
+    profiles_dir = ctx.obj['PROFILES']
+    profile_dir = os.path.join(profiles_dir, profile)
+    config_dir = os.path.join(profile_dir, 'config')
+    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+
+    if not os.path.exists(passwd_file):
+        ctx.exit(1)
+
+    db = passlib.apache.HtpasswdFile(passwd_file)
+
+    for user in db.users():
+        click.echo(user)
