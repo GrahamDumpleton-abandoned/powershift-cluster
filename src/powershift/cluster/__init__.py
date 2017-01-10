@@ -117,6 +117,31 @@ class VolumeSize(click.ParamType):
             self.fail('%s is not a valid volume size' % value, param, ctx)
         return value
 
+enable_htpasswd_script = """#!/bin/bash
+PATCH=`cat <<EOF
+{
+    "oauthConfig": {
+        "identityProviders": [
+            {
+                "challenge": true,
+                "login": true,
+                "mappingMethod": "add",
+                "name": "htpassword",
+                "provider": {
+                    "apiVersion": "v1",
+                    "kind": "HTPasswdPasswordIdentityProvider",
+                    "file": "%(master_dir)s/users.htpasswd"
+                }
+            }
+        ]
+    }
+}
+EOF`
+
+openshift ex config patch %(master_dir)s/master-config-orig.yaml \
+    --patch "$PATCH" > %(master_dir)s/master-config.yaml
+"""
+
 @root.group()
 @click.pass_context
 def cluster(ctx):
@@ -389,21 +414,6 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
             click.echo('Failed: Unable to assign sudoer role to developer.')
             ctx.exit(result.returncode)
 
-        # Setup an admin account that can be used from the web console.
-
-        command = ['oc adm policy']
-
-        command.append('add-cluster-role-to-user cluster-admin admin')
-        command.append('--as system:admin')
-
-        command = ' '.join(command)
-
-        result = execute(command)
-
-        if result.returncode != 0:
-            click.echo('Failed: Unable to create admin user.')
-            ctx.exit(result.returncode)
-
         # Create a context named after the profile to allow for reuse.
 
         command = ['oc adm config']
@@ -448,28 +458,72 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
             pv = 'pv%02d' % n
             ctx.invoke(cluster_volumes_create, name=pv, size=volume_size)
 
-    else:
-        click.echo('Starting')
+        # Initialise the accounts database with default password.
+        # Note that this will recursively call back into this function
+        # to start the cluster after having stopped it.
 
-        # Start up the OpenShift instance using the saved startup
-        # command from when the instance was first created.
+        passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
 
-        run_file = os.path.join(profile_dir, 'run')
+        # Create the database file.
 
-        with open(run_file) as fp:
-            command = fp.read().strip()
+        db = passlib.apache.HtpasswdFile(passwd_file, new=True)
+        db.set_password('developer', 'developer')
+        db.save()
 
-        if env:
-            for item in env:
-                command += ' --env "%s"' % item
+        # Update the authentication provider.
+     
+        config = os.path.join(config_dir, 'master', 'master-config.yaml') 
+        config_orig = os.path.join(config_dir, 'master', 'master-config-orig.yaml') 
 
-        click.echo(command)
+        shutil.copy(config, config_orig)
 
-        result = execute(command)
+        master_dir = '/var/lib/origin/openshift.local.config/master'
+
+        script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
+
+        with open(script_file, 'w') as fp:
+            fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
+
+        command = []
+
+        command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
+        command.extend([posixpath.join(master_dir, 'enable_htpasswd')])
+
+        try:
+            result = execute_and_capture(command)
+        except Exception:
+            click.echo('Failed: Unable to adjust master config.')
+            ctx.exit(result.returncode)
+
+        # Stop and start the cluster.
+
+        result = execute('oc cluster down')
 
         if result.returncode != 0:
-            click.echo('Failed: The "oc cluster up" command failed.')
+            click.echo('Failed: The "oc cluster down" command failed.')
             ctx.exit(result.returncode)
+
+    # Start up the OpenShift instance using the saved startup command
+    # from when the instance was first created.
+
+    click.echo('Starting')
+
+    run_file = os.path.join(profile_dir, 'run')
+
+    with open(run_file) as fp:
+        command = fp.read().strip()
+
+    if env:
+        for item in env:
+            command += ' --env "%s"' % item
+
+    click.echo(command)
+
+    result = execute(command)
+
+    if result.returncode != 0:
+        click.echo('Failed: The "oc cluster up" command failed.')
+        ctx.exit(result.returncode)
 
     # Switch to context for this profile.
 
@@ -742,9 +796,9 @@ def cluster_volumes_list(ctx):
 
     ctx.exit(result.returncode)
 
-@cluster.group('accounts')
+@cluster.group('users')
 @click.pass_context
-def cluster_accounts(ctx):
+def cluster_users(ctx):
     """
     Manage accounts database for the cluster.
 
@@ -752,106 +806,12 @@ def cluster_accounts(ctx):
 
     pass
 
-enable_htpasswd_script = """#!/bin/bash
-PATCH=`cat <<EOF
-{
-    "oauthConfig": {
-        "identityProviders": [
-            {
-                "challenge": true,
-                "login": true,
-                "mappingMethod": "add",
-                "name": "htpassword",
-                "provider": {
-                    "apiVersion": "v1",
-                    "kind": "HTPasswdPasswordIdentityProvider",
-                    "file": "%(master_dir)s/users.htpasswd"
-                }
-            }
-        ]
-    }
-}
-EOF`
-
-openshift ex config patch %(master_dir)s/master-config-orig.yaml \
-    --patch "$PATCH" > %(master_dir)s/master-config.yaml
-"""
-
-@cluster_accounts.command('install')
-@click.pass_context
-@click.option('--admin-password', hide_input=True,
-    confirmation_prompt=True, prompt='Password (admin)',
-    help='The password for the admin user.')
-@click.option('--developer-password', hide_input=True,
-    confirmation_prompt=True, prompt='Password (developer)',
-    help='The password for the developer.')
-def cluster_accounts_install(ctx, admin_password, developer_password):
-    """
-    Create the initial account database.
-
-    """
-
-    if not cluster_running():
-        click.echo('Stopped')
-        ctx.exit(1)
-
-    profile = active_profile(ctx)
-
-    profiles_dir = ctx.obj['PROFILES']
-    profile_dir = os.path.join(profiles_dir, profile)
-    config_dir = os.path.join(profile_dir, 'config')
-    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
-
-    if os.path.exists(passwd_file):
-        click.echo('Failed: The password file already exists.')
-        ctx.exit(1)
-
-    # Create the database file.
-
-    db = passlib.apache.HtpasswdFile(passwd_file, new=True)
-    db.set_password('admin', admin_password)
-    db.set_password('developer', developer_password)
-    db.save()
-
-    # Update the authentication provider.
- 
-    config = os.path.join(config_dir, 'master', 'master-config.yaml') 
-    config_orig = os.path.join(config_dir, 'master', 'master-config-orig.yaml') 
-
-    shutil.copy(config, config_orig)
-
-    master_dir = '/var/lib/origin/openshift.local.config/master'
-
-    script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
-
-    with open(script_file, 'w') as fp:
-        fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
-
-    command = []
-
-    command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
-    command.extend([posixpath.join(master_dir, 'enable_htpasswd')])
-
-    try:
-        result = execute_and_capture(command)
-    except Exception:
-        click.echo('Failed: Unable to adjust master config.')
-        ctx.exit(result.returncode)
-
-    print(result)
-
-    # Stop and start the cluster.
-
-    ctx.invoke(cluster_down)
-
-    ctx.invoke(cluster_up, profile=profile)
-
-@cluster_accounts.command('password')
+@cluster_users.command('passwd')
 @click.option('--password', prompt=True, hide_input=True,
     confirmation_prompt=True, help='The new password for the user.')
 @click.argument('user')
 @click.pass_context
-def cluster_accounts_password(ctx, user, password):
+def cluster_users_passwd(ctx, user, password):
     """
     Change the password for an account.
 
@@ -881,12 +841,14 @@ def cluster_accounts_password(ctx, user, password):
     db.set_password(user, password)
     db.save()
 
-@cluster_accounts.command('add')
+@cluster_users.command('add')
 @click.option('--password', prompt=True, hide_input=True,
     confirmation_prompt=True, help='The password for the user.')
+@click.option('--admin', is_flag=True,
+    help='Make the user a system admin.')
 @click.argument('user')
 @click.pass_context
-def cluster_accounts_add(ctx, user, password):
+def cluster_users_add(ctx, user, password, admin):
     """
     Adds a new user account.
 
@@ -916,10 +878,24 @@ def cluster_accounts_add(ctx, user, password):
     db.set_password(user, password)
     db.save()
 
-@cluster_accounts.command('remove')
+    if admin:
+        command = ['oc adm policy']
+
+        command.append('add-cluster-role-to-user cluster-admin %s' % user)
+        command.append('--as system:admin')
+
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to make user a system admin.')
+            ctx.exit(result.returncode)
+
+@cluster_users.command('remove')
 @click.argument('user')
 @click.pass_context
-def cluster_accounts_remove(ctx, user):
+def cluster_users_remove(ctx, user):
     """
     Removes a user account.
 
@@ -955,9 +931,9 @@ def cluster_accounts_remove(ctx, user):
     db.delete(user)
     db.save()
 
-@cluster_accounts.command('list')
+@cluster_users.command('list')
 @click.pass_context
-def cluster_accounts_list(ctx):
+def cluster_users_list(ctx):
     """
     List active user accounts.
 
