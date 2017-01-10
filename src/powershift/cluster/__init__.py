@@ -99,6 +99,24 @@ def profile_names(ctx):
 
     return map(os.path.basename, glob(os.path.join(profiles, '*')))
 
+class ClaimRef(click.ParamType):
+    name = 'claim-ref'
+
+    def convert(self, value, param, ctx):
+        try:
+            project, name = value.split('/')
+            return (project, name)
+        except ValueError:
+            self.fail('%s is not a valid claim reference' % value, param, ctx)
+
+class VolumeSize(click.ParamType):
+    name = 'volume-size'
+
+    def convert(self, value, param, ctx):
+        if not re.match('^\d+[GM]i$', value):
+            self.fail('%s is not a valid volume size' % value, param, ctx)
+        return value
+
 @root.group()
 @click.pass_context
 def cluster(ctx):
@@ -135,6 +153,10 @@ def cluster(ctx):
     help='Install logging (experimental).')
 @click.option('--metrics', is_flag=True,
     help='Install metrics (experimental).')
+@click.option('--volumes', default=10, type=int,
+    help='Specify number of persistent volumes.')
+@click.option('--volume-size', default='10Gi', type=VolumeSize(),
+    help='Specify size of persistent volumes.')
 @click.option('--loglevel', default=0, type=int,
     help='Log level for the OpenShift client.')
 @click.option('--server-loglevel', default=0, type=int,
@@ -144,7 +166,7 @@ def cluster(ctx):
 @click.argument('profile', default='default')
 @click.pass_context
 def cluster_up(ctx, profile, image, version, routing_suffix, logging,
-        metrics, loglevel, server_loglevel, env):
+        metrics, volumes, volume_size, loglevel, server_loglevel, env):
 
     """
     Starts up an OpenShift cluster.
@@ -422,9 +444,9 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
         # Create an initial set of volumes.
 
-        for n in range(1, 10):
+        for n in range(1, volumes):
             pv = 'pv%02d' % n
-            ctx.invoke(volumes_create, name=pv, size='10Gi')
+            ctx.invoke(cluster_volumes_create, name=pv, size=volume_size)
 
     else:
         click.echo('Starting')
@@ -611,24 +633,6 @@ def cluster_volumes(ctx):
     """
 
     pass
-
-class ClaimRef(click.ParamType):
-    name = 'claim-ref'
-
-    def convert(self, value, param, ctx):
-        try:
-            project, name = value.split('/')
-            return (project, name)
-        except ValueError:
-            self.fail('%s is not a valid claim reference' % value, param, ctx)
-
-class VolumeSize(click.ParamType):
-    name = 'volume-size'
-
-    def convert(self, value, param, ctx):
-        if not re.match('^\d+[GM]i$', value):
-            self.fail('%s is not a valid volume size' % value, param, ctx)
-        return value
 
 @cluster_volumes.command('create')
 @click.option('--path', default=None, type=click.Path(resolve_path=True),
