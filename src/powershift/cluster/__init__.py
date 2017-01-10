@@ -657,7 +657,7 @@ def cluster_status(ctx):
         click.echo('Failed: Cannot find active profile.')
         ctx.exit(1)
 
-    click.echo('Status: Running')
+    click.echo('Status: Running (%s)' % profile)
 
 @cluster.command('ssh')
 @click.pass_context
