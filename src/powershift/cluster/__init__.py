@@ -175,6 +175,8 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
     root_dir = ctx.obj['ROOTDIR']
     profiles_dir = ctx.obj['PROFILES']
 
+    ctx.obj['PROFILE'] = profile
+
     try:
         os.mkdir(root_dir)
     except OSError:
@@ -409,6 +411,12 @@ def up(ctx, profile, image, version, routing_suffix, logging, metrics,
             click.echo('Failed: Unable to setup context in kubeconfig.')
             ctx.exit(result.returncode)
 
+        # Create an initial set of volumes.
+
+        for n in range(1, 10):
+            pv = 'pv%02d' % n
+            ctx.invoke(volumes_create, name=pv, size='10Gi')
+
     else:
         click.echo('Starting')
 
@@ -632,7 +640,11 @@ def volumes_create(ctx, name, path, size, claim):
         ctx.exit(1)
 
     profiles = ctx.obj['PROFILES']
-    profile = active_profile(ctx)
+
+    # Check context object for profile as can be passed in when creating
+    # volumes on cluster creation.
+
+    profile = ctx.obj.get('PROFILE') or active_profile(ctx)
 
     # Need to make sure the named persistent volume doesn't already
     # exist so we try and query details for it and if that fails we
@@ -697,12 +709,6 @@ def volumes_create(ctx, name, path, size, claim):
     if result.returncode != 0:
         click.echo('Failed: Persistent volume creation failed.')
         ctx.exit(result.returncode)
-
-    # Output the details of the persistent volume created.
-
-    result = execute('oc describe pv "%s" --as system:admin' % name)
-
-    ctx.exit(result.returncode)
 
 @volumes.command('list')
 @click.pass_context
