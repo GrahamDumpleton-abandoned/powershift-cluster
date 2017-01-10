@@ -33,10 +33,12 @@ To see all available command you can use inbuilt help features of the
       --help  Show this message and exit.
 
     Commands:
+      client      Install/update oc command line tool.
       cluster     Manage a local OpenShift cluster.
       completion  Output completion script for specified shell.
       console     Open a browser on the OpenShift web console.
       server      Displays the URL for the OpenShift cluster.
+      session     Display information about current session.
 
     $ powershift cluster
     Usage: powershift cluster [OPTIONS] COMMAND [ARGS]...
