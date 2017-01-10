@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import io
 import os
 import sys
 import shutil
@@ -481,7 +482,7 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
         script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
 
-        with open(script_file, 'w') as fp:
+        with io.open(script_file, 'w', newline='') as fp:
             fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
 
         command = []
