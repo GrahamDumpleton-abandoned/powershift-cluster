@@ -3,7 +3,16 @@ OpenShift cluster. The commands provide a layer around the ``oc cluster
 up`` command, adding the ability to easily maintain persistent profiles for
 multiple local instances of OpenShift running on a Docker service.
 
-Installing this package will automatically result in the ``powershift``
+To enhance security, a user database will also be configured so that the
+default password for the developer account can be changed. Additional user
+accounts can also be created, with system admin rights if necessary.
+
+Finally a set of persistent volumes will also be associated with each
+profile. Additional persistent volumes can also be declared, including
+pre claimed volumes associated with an existing directory on the host
+containing code or data files.
+
+Installing this package will automatically result in the ``powershift-cli``
 package being installed, along with the ``powershift`` command line client
 contained in that package. The addon commands from this package will be
 automatically registered with the ``powershift`` command line tool.
@@ -66,6 +75,7 @@ To see all available command you can use inbuilt help features of the
       ssh      Opens a shell session in the OpenShift master...
       status   Displays the status of the OpenShift cluster.
       up       Starts up an OpenShift cluster.
+      users    Manage accounts database for the cluster.
       volumes  Manage persistent volumes for the cluster.
 
     $ powershift cluster volumes
@@ -79,6 +89,20 @@ To see all available command you can use inbuilt help features of the
     Commands:
       create  Create a new persistent volume.
       list    List the available peristent volumes.
+
+    $ powershift cluster users
+    Usage: powershift cluster users [OPTIONS] COMMAND [ARGS]...
+
+      Manage accounts database for the cluster.
+
+    Options:
+      --help  Show this message and exit.
+
+    Commands:
+      add     Adds a new user account.
+      list    List active user accounts.
+      passwd  Change the password for an account.
+      remove  Removes a user account.
 
 Use the ``--help`` option on individual commands to see what the command
 does and what further options can be supplied.
