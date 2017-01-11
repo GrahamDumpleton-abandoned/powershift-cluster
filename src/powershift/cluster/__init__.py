@@ -189,10 +189,13 @@ def cluster(ctx):
     help='Log level for the OpenShift server.')
 @click.option('--env', '-e', multiple=True,
     help='Specify environment variables to set.')
+@click.option('--reset-password', is_flag=True,
+    help='Prompt for the developer password.')
 @click.argument('profile', default='default')
 @click.pass_context
 def cluster_up(ctx, profile, image, version, routing_suffix, logging,
-        metrics, volumes, volume_size, loglevel, server_loglevel, env):
+        metrics, volumes, volume_size, loglevel, server_loglevel, env,
+        reset_password):
 
     """
     Starts up an OpenShift cluster.
@@ -279,6 +282,15 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         except OSError:
             click.echo('Failed: Cannot create profile directories.')
             sys.exit(1)
+
+        # Prompt for alternate developer account password to use.
+
+        if reset_password:
+            password = click.prompt('Enter Password',
+                    default='developer', hide_input=True,
+                    confirmation_prompt=True)
+        else:
+            password = 'developer'
 
         # On Linux the Docker service will have its own IP address, so
         # need to determine that. Otherwise use 127.0.0.1 as the IP
@@ -468,7 +480,7 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         # Create the database file.
 
         db = passlib.apache.HtpasswdFile(passwd_file, new=True)
-        db.set_password('developer', 'developer')
+        db.set_password('developer', password)
         db.save()
 
         # Update the authentication provider.
