@@ -139,7 +139,37 @@ PATCH=`cat <<EOF
 }
 EOF`
 
-openshift ex config patch %(master_dir)s/master-config-orig.yaml \
+cp %(master_dir)s/master-config.yaml /tmp/master-config.yaml
+
+openshift ex config patch /tmp/master-config.yaml \
+    --patch "$PATCH" > %(master_dir)s/master-config.yaml
+"""
+
+enable_labels_script = """#!/bin/bash
+PATCH=`cat <<EOF
+{
+    "admissionConfig": {
+        "pluginConfig": {
+            "BuildDefaults": {
+                "configuration": {
+                    "apiVersion": "v1",
+                    "kind": "BuildDefaultsConfig",
+                    "imageLabels": [
+                        {
+                            "name": "powershift-profile",
+                            "value": "%(profile)s"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
+EOF`
+
+cp %(master_dir)s/master-config.yaml /tmp/master-config.yaml
+
+openshift ex config patch /tmp/master-config.yaml \
     --patch "$PATCH" > %(master_dir)s/master-config.yaml
 """
 
@@ -485,11 +515,6 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
         # Update the authentication provider.
      
-        config = os.path.join(config_dir, 'master', 'master-config.yaml') 
-        config_orig = os.path.join(config_dir, 'master', 'master-config-orig.yaml') 
-
-        shutil.copy(config, config_orig)
-
         master_dir = '/var/lib/origin/openshift.local.config/master'
 
         script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
@@ -505,7 +530,26 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         try:
             result = execute_and_capture(command)
         except Exception:
-            click.echo('Failed: Unable to adjust master config.')
+            click.echo('Failed: Unable to enable password database.')
+            ctx.exit(result.returncode)
+
+        # Enable labels for all built images.
+
+        script_file = os.path.join(config_dir, 'master', 'enable_labels')
+
+        with io.open(script_file, 'w', newline='') as fp:
+            fp.write(enable_labels_script % dict(master_dir=master_dir,
+                profile=profile))
+
+        command = []
+
+        command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
+        command.extend([posixpath.join(master_dir, 'enable_labels')])
+
+        try:
+            result = execute_and_capture(command)
+        except Exception:
+            click.echo('Failed: Unable to enable image labels.')
             ctx.exit(result.returncode)
 
         # Stop and start the cluster.
