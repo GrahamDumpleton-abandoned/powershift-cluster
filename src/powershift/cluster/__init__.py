@@ -118,7 +118,7 @@ class VolumeSize(click.ParamType):
             self.fail('%s is not a valid volume size' % value, param, ctx)
         return value
 
-enable_htpasswd_script = """#!/bin/bash
+enable_htpasswd_script = u"""#!/bin/bash
 PATCH=`cat <<EOF
 {
     "oauthConfig": {
@@ -145,7 +145,7 @@ openshift ex config patch /tmp/master-config.yaml \
     --patch "$PATCH" > %(master_dir)s/master-config.yaml
 """
 
-enable_labels_script = """#!/bin/bash
+enable_labels_script = u"""#!/bin/bash
 PATCH=`cat <<EOF
 {
     "admissionConfig": {
