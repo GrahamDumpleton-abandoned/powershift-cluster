@@ -552,7 +552,8 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
             click.echo('Failed: Unable to enable image labels.')
             ctx.exit(result.returncode)
 
-        # Stop and start the cluster.
+        # Stop the cluster so configuration changes will take effect
+        # on the restart below.
 
         result = execute('oc cluster down')
 
