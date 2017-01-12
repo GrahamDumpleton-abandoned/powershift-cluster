@@ -774,11 +774,13 @@ def cluster_volumes(ctx):
     help='Specify a path for the persistent volume')
 @click.option('--size', default='10Gi', type=VolumeSize(),
     help='Specify a size for the persistent volume.')
+@click.option('--access-mode', multiple=True,
+    help='Specify the access mode for the volume.')
 @click.option('--claim', default=None, type=ClaimRef(),
     help='Assign the persistent volume a claim reference.')
 @click.argument('name')
 @click.pass_context
-def cluster_volumes_create(ctx, name, path, size, claim):
+def cluster_volumes_create(ctx, name, path, size, access_mode, claim):
     """
     Create a new persistent volume.
 
@@ -836,6 +838,9 @@ def cluster_volumes_create(ctx, name, path, size, claim):
             'persistentVolumeReclaimPolicy': 'Retain'
         }
     }
+
+    if access_mode:
+        pv['spec']['accessModes'] = access_mode
 
     # Add a claim reference if one is provided.
 
