@@ -830,7 +830,7 @@ def cluster_volumes_create(ctx, name, path, size, claim):
             'name': name
         },
         'spec': {
-            'accessModes': ['ReadWriteOnce', 'ReadWriteMany'],
+            'accessModes': ['ReadWriteOnce', 'ReadWriteMany', 'ReadOnlyMany'],
             'capacity': {'storage': size},
             'hostPath': {'path': container_path(path)},
             'persistentVolumeReclaimPolicy': 'Retain'
