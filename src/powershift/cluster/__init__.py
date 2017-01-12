@@ -664,15 +664,38 @@ def cluster_destroy(ctx, profile):
             click.echo('Failed: The "oc cluster down" command failed.')
             ctx.exit(result.returncode)
 
+    # Now remove any images which were built by the cluster for this
+    # profile by using label attached to images.
+
+    click.echo('Cleaning')
+
+    label = 'powershift-profile=%s' % profile
+
+    command = 'docker images --filter label=%s -q' % label
+
+    try:
+        images = execute_and_capture(command)
+
+        for image in images.strip().split():
+            command = 'docker rmi %s' % image
+
+            result = execute(command)
+
+            if result.returncode != 0: 
+                click.echo('Warning: Unable to delete image %s.' % image)
+
+    except Exception:
+        click.echo('Warning: Unable to query images for profile.')
+
+    # Remove the profile directory. There may be a risk this will not
+    # completely work if files were created in a volume which had
+    # ownership or permissions that prevent removal.
+
     profiles = ctx.obj['PROFILES']
 
     directory = os.path.join(profiles, profile)
 
     click.echo('Removing: %s' % directory)
-
-    # Remove the profile directory. There may be a risk this will not
-    # completely work if files were created in a volume which had
-    # ownership or permissions that prevent removal.
 
     shutil.rmtree(directory)
 
