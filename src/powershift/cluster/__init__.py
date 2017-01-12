@@ -847,7 +847,7 @@ def cluster_volumes_create(ctx, name, path, size, claim):
             'name': claim[1]
         }
 
-        pv['spec']['claim_ref'] = ref
+        pv['spec']['claimRef'] = ref
 
     # Create the persistent volume.
 
