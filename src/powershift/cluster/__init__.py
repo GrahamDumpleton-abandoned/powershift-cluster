@@ -497,9 +497,10 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
         # Create an initial set of volumes.
 
-        for n in range(1, volumes):
+        for n in range(1, max(0, volumes)+1):
             pv = 'pv%02d' % n
-            ctx.invoke(cluster_volumes_create, name=pv, size=volume_size)
+            ctx.invoke(cluster_volumes_create, name=pv, size=volume_size,
+                    reclaim_policy='Recycle')
 
         # Initialise the accounts database with default password.
         # Note that this will recursively call back into this function
@@ -776,11 +777,15 @@ def cluster_volumes(ctx):
     help='Specify a size for the persistent volume.')
 @click.option('--access-mode', multiple=True,
     help='Specify the access mode for the volume.')
+@click.option('--reclaim-policy', default='Retain',
+    help='Specify the reclaim policy for the volume.')
 @click.option('--claim', default=None, type=ClaimRef(),
     help='Assign the persistent volume a claim reference.')
 @click.argument('name')
 @click.pass_context
-def cluster_volumes_create(ctx, name, path, size, access_mode, claim):
+def cluster_volumes_create(ctx, name, path, size, access_mode,
+        reclaim_policy, claim):
+
     """
     Create a new persistent volume.
 
@@ -835,7 +840,7 @@ def cluster_volumes_create(ctx, name, path, size, access_mode, claim):
             'accessModes': ['ReadWriteOnce', 'ReadWriteMany', 'ReadOnlyMany'],
             'capacity': {'storage': size},
             'hostPath': {'path': container_path(path)},
-            'persistentVolumeReclaimPolicy': 'Retain'
+            'persistentVolumeReclaimPolicy': reclaim_policy,
         }
     }
 
