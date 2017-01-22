@@ -532,7 +532,7 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
             result = execute_and_capture(command)
         except Exception:
             click.echo('Failed: Unable to enable password database.')
-            ctx.exit(result.returncode)
+            ctx.exit(1)
 
         # Enable labels for all built images.
 
@@ -551,7 +551,7 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
             result = execute_and_capture(command)
         except Exception:
             click.echo('Failed: Unable to enable image labels.')
-            ctx.exit(result.returncode)
+            ctx.exit(1)
 
         # Stop the cluster so configuration changes will take effect
         # on the restart below.
