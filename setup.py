@@ -31,7 +31,7 @@ setup_kwargs = dict(
     packages=['powershift', 'powershift.cluster'],
     package_dir={'powershift': 'src/powershift'},
     install_requires=['passlib'],
-    extra_requires={'cli': ['powershift-cli>=1.1.0']},
+    extras_require={'cli': ['powershift-cli>=1.1.1']},
     entry_points = {'powershift_cli_plugins': ['cluster = powershift.cluster']},
 )
 
