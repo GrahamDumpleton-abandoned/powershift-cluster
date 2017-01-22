@@ -200,32 +200,38 @@ def cluster(ctx):
 
 @cluster.command('up')
 @click.option('--image', default=None,
-    help='Specify alternate image to use for OpenShift.')
+    help='Alternate image to use for OpenShift.')
 @click.option('--version', default=None,
-    help='Specify the tag for the OpenShift images.')
+    help='Tag for the OpenShift images.')
 @click.option('--routing-suffix', default=None,
-    help='Specify alternate route for applications.')
+    help='Alternate route for applications.')
 @click.option('--logging', is_flag=True,
     help='Install logging (experimental).')
 @click.option('--metrics', is_flag=True,
     help='Install metrics (experimental).')
 @click.option('--volumes', default=10, type=int,
-    help='Specify number of persistent volumes.')
+    help='Number of persistent volumes.')
 @click.option('--volume-size', default='10Gi', type=VolumeSize(),
-    help='Specify size of persistent volumes.')
+    help='Size of persistent volumes.')
 @click.option('--loglevel', default=0, type=int,
     help='Log level for the OpenShift client.')
 @click.option('--server-loglevel', default=0, type=int,
     help='Log level for the OpenShift server.')
 @click.option('--env', '-e', multiple=True,
-    help='Specify environment variables to set.')
+    help='Environment variables to set.')
+@click.option('--http-proxy', default=None,
+    help='HTTP proxy for master/builds (1.5+).')
+@click.option('--https-proxy', default=None,
+    help='HTTPS proxy for master/builds (1.5+).')
+@click.option('--no-proxy', '-e', multiple=True,
+    help='Hosts/subnets proxy should ignore (1.5+).')
 @click.option('--reset-password', is_flag=True,
     help='Prompt for the developer password.')
 @click.argument('profile', default='default')
 @click.pass_context
 def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         metrics, volumes, volume_size, loglevel, server_loglevel, env,
-        reset_password):
+        http_proxy, https_proxy, no_proxy, reset_password):
 
     """
     Starts up an OpenShift cluster.
@@ -387,6 +393,16 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
         if server_loglevel:
             command.append('--server-loglevel %d' % server_loglevel)
+
+        if http_proxy:
+            command.append('--http-proxy "%s"' % http_proxy)
+
+        if https_proxy:
+            command.append('--https-proxy "%s"' % https_proxy)
+
+        if no_proxy:
+            for item in no_proxy:
+                command.append('--no-proxy "%s"' % item)
 
         if env:
             for item in env:
