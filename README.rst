@@ -17,9 +17,9 @@ To install this package, along with the ``powershift-cli`` package, and the
 ``powershift`` command line program contained in that package, you should
 use ``pip`` to install the package ``powershift-cluster[cli]``, rather than
 just ``powershift-cluster``. Alternatively, you can install
-``powershift-cli[all]``, which will install the ``powershift-cli`` along
-with all plugins currently available for the ``powershift`` command line
-program.
+``powershift-cli[all]``, which will install the ``powershift-cli`` package
+along with all plugins currently available for the ``powershift`` command
+line program.
 
 For more details on how to install the ``powershift`` command line program
 and available plugins see:
