@@ -1,7 +1,8 @@
-This package provides an addon for the PowerShift CLI for managing a local
-OpenShift cluster. The commands provide a layer around the ``oc cluster
-up`` command, adding the ability to easily maintain persistent profiles for
-multiple local instances of OpenShift running on a Docker service.
+This package provides a plugin for the ``powershift`` command line client
+for managing a local OpenShift cluster. The commands provide a layer around
+the ``oc cluster up`` command, adding the ability to easily maintain
+persistent profiles for multiple local instances of OpenShift running on a
+Docker service.
 
 To enhance security, a user database will also be configured so that the
 default password for the developer account can be changed. Additional user
@@ -12,10 +13,18 @@ profile. Additional persistent volumes can also be declared, including
 pre claimed volumes associated with an existing directory on the host
 containing code or data files.
 
-Installing this package will automatically result in the ``powershift-cli``
-package being installed, along with the ``powershift`` command line client
-contained in that package. The addon commands from this package will be
-automatically registered with the ``powershift`` command line tool.
+To install this package, along with the ``powershift-cli`` package, and the
+``powershift`` command line program contained in that package, you should
+use ``pip`` to install the package ``powershift-cluster[cli]``, rather than
+just ``powershift-cluster``. Alternatively, you can install
+``powershift-cli[all]``, which will install the ``powershift-cli`` along
+with all plugins currently available for the ``powershift`` command line
+program.
+
+For more details on how to install the ``powershift`` command line program
+and available plugins see:
+
+* https://github.com/getwarped/powershift-cli
 
 Available commands
 ------------------
