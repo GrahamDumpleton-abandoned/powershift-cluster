@@ -333,13 +333,18 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         # for the OpenShift instance.
 
         if sys.platform == 'linux':
-            ifconfig = execute_and_capture('/usr/sbin/ifconfig docker0')
+            if os.path.exists('/usr/sbin/ifconfig'):
+                ifconfig = execute_and_capture('/usr/sbin/ifconfig docker0')
+            else:
+                ifconfig = execute_and_capture('/sbin/ip addr show docker0')
+
             for line in ifconfig.split('\n'):
                 if 'inet' in line:
                     ipaddr = line.split()[1]
                     break
             else:
                 ipaddr = '127.0.0.1'
+
         else:
             ipaddr = '127.0.0.1'
 
