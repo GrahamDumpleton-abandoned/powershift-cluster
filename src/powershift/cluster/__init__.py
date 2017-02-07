@@ -332,7 +332,7 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         # need to determine that. Otherwise use 127.0.0.1 as the IP
         # for the OpenShift instance.
 
-        if sys.platform == 'linux':
+        if sys.platform.startswith('linux'):
             if os.path.exists('/usr/sbin/ifconfig'):
                 ifconfig = execute_and_capture('/usr/sbin/ifconfig docker0')
             else:
@@ -444,7 +444,7 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         # group of files so can read them, but also so can later remove
         # the profile completely.
 
-        if sys.platform == 'linux':
+        if sys.platform.startswith('linux'):
             command = ('docker exec origin chown -R %d:%d '
                     '/var/lib/origin/openshift.local.config '
                     '/var/lib/origin/openshift.local.etcd' % (
