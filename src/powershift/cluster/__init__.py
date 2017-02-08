@@ -350,7 +350,8 @@ def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
 
             for line in ifconfig.split('\n'):
                 if 'inet' in line:
-                    ipaddr = line.split()[1]
+                    # Can be 'inet A.B.C.D', or 'inet A.B.C.D/NN'.
+                    ipaddr = line.split()[1].split('/')[0]
                     break
             else:
                 ipaddr = None
