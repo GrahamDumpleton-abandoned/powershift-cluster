@@ -203,6 +203,8 @@ def cluster(ctx):
     help='Alternate image to use for OpenShift.')
 @click.option('--version', default=None,
     help='Tag for the OpenShift images.')
+@click.option('--public-hostname', default=None,
+    help='Alternate route for console.')
 @click.option('--routing-suffix', default=None,
     help='Alternate route for applications.')
 @click.option('--logging', is_flag=True,
@@ -229,9 +231,9 @@ def cluster(ctx):
     help='Prompt for the developer password.')
 @click.argument('profile', default='default')
 @click.pass_context
-def cluster_up(ctx, profile, image, version, routing_suffix, logging,
-        metrics, volumes, volume_size, loglevel, server_loglevel, env,
-        http_proxy, https_proxy, no_proxy, reset_password):
+def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
+        logging, metrics, volumes, volume_size, loglevel, server_loglevel,
+        env, http_proxy, https_proxy, no_proxy, reset_password):
 
     """
     Starts up an OpenShift cluster.
@@ -300,8 +302,12 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
     profile_dir = os.path.join(profiles_dir, profile)
 
+    create_profile = False
+
     if profile not in profile_names(ctx):
         click.echo('Creating')
+
+        create_profile = True
 
         # Create the directory structure for a specific profile.
 
@@ -328,9 +334,13 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         else:
             password = 'developer'
 
+        # Construct the command for oc cluster up.
+
+        command = ['oc cluster up']
+
         # On Linux the Docker service will have its own IP address, so
-        # need to determine that. Otherwise use 127.0.0.1 as the IP
-        # for the OpenShift instance.
+        # need to determine that. Windows does as well but not sure how
+        # to determine what it will be. For MacOS X it is 127.0.0.1.
 
         if sys.platform.startswith('linux'):
             if os.path.exists('/usr/sbin/ifconfig'):
@@ -343,10 +353,19 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
                     ipaddr = line.split()[1]
                     break
             else:
-                ipaddr = '127.0.0.1'
+                ipaddr = None
+
+        elif sys.platform == 'darwin':
+            ipaddr = '127.0.0.1'
 
         else:
-            ipaddr = '127.0.0.1'
+            ipaddr = None
+
+        # Possibly only need this on MacOS X to deal with older oc
+        # versions which didn't use 127.0.0.1 by default.
+
+        if not public_hostname and ipaddr:
+            command.append('--public-hostname "%s"' % ipaddr)
 
         # Use the same IP address for applicaton routes unless an
         # alternative is provided. We use xip.io so can easily map
@@ -355,31 +374,22 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         # that maps to the necessary IP address.
 
         if routing_suffix is None:
-            if ipaddr != '127.0.0.1':
+            if ipaddr and ipaddr != '127.0.0.1':
                 routing_suffix = 'apps.%s.%s.xip.io' % (profile, ipaddr)
             else:
                 routing_suffix = ''
 
-        command = ['oc cluster up']
+        if routing_suffix:
+            command.append('--routing-suffix "%s"' % routing_suffix)
 
-        # Don't pass through any IP address by default for Windows as it
-        # will allocate one itself based on what the VM is that Docker is
-        # running. Too much mucking around to work out what it is and the
-        # default system to be secure enough as is an internal IP.
-
-        if sys.platform == 'win32':
-            if ipaddr != '127.0.0.1':
-                command.append('--public-hostname "%s"' % ipaddr)
-        else:
-            command.append('--public-hostname "%s"' % ipaddr)
+        # Persist configuration between runs. Need to ensure location
+        # to save uses path convention for inside of the container and
+        # not local host operating system convention.
 
         command.append('--host-data-dir "%s"' % container_path(data_dir))
         command.append('--host-config-dir "%s"' % container_path(config_dir))
 
-        command.append('--use-existing-config')
-
-        if routing_suffix:
-            command.append('--routing-suffix "%s"' % routing_suffix)
+        # Deal with other command options passed in by user.
 
         if image:
             command.append('--image "%s"' % image)
@@ -416,26 +426,32 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         if ipaddr != '127.0.0.1':
             command.append('--forward-ports=false')
 
-        command = ' '.join(command)
+        # Run 'oc cluster up' to start up the instance.
+
+        click.echo(' '.join(command))
+
+        result = execute(' '.join(command))
+
+        if result.returncode != 0:
+            click.echo('Failed: The "oc cluster up" command failed.')
+            ctx.exit(result.returncode)
 
         # Save away the command line used for 'oc cluster up' so we can
         # use it for subsequent runs without needing to work out options
-        # again, or supply them on the command line.
+        # again, or supply them on the command line. First have to add
+        # --public-hostname. Need to only override on subsequent runs,
+        # not the first. This is a workaround for broken handling of
+        # --public-hostname on MacOS X.
+
+        if public_hostname:
+            command.append('--public-hostname "%s"' % public_hostname)
+
+        command = ' '.join(command)
 
         run_file = os.path.join(profile_dir, 'run')
 
         with open(run_file, 'w') as fp:
             fp.write(command)
-
-        click.echo(command)
-
-        # Run 'oc cluster up' to start up the instance.
-
-        result = execute(command)
-
-        if result.returncode != 0:
-            click.echo('Failed: The "oc cluster up" command failed.')
-            ctx.exit(result.returncode)
 
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
@@ -476,44 +492,6 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
 
         if result.returncode != 0:
             click.echo('Failed: Unable to assign sudoer role to developer.')
-            ctx.exit(result.returncode)
-
-        # Create a context named after the profile to allow for reuse.
-
-        command = ['oc adm config']
-        command.append('set-cluster powershift-%s' % profile)
-        command.append('--server=%s' % server_url())
-        command.append('--insecure-skip-tls-verify=true')
-        command = ' '.join(command)
-
-        result = execute(command)
-
-        if result.returncode != 0:
-            click.echo('Failed: Unable to setup cluster in kubeconfig.')
-            ctx.exit(result.returncode)
- 
-        command = ['oc adm config']
-        command.append('set-credentials developer@powershift-%s' % profile)
-        command.append('--token=%s' % session_token())
-        command = ' '.join(command)
-
-        result = execute(command)
-
-        if result.returncode != 0:
-            click.echo('Failed: Unable to set token for context in kubeconfig.')
-            ctx.exit(result.returncode)
-
-        command = ['oc adm config']
-        command.append('set-context powershift-%s' % profile)
-        command.append('--cluster=powershift-%s' % profile)
-        command.append('--user=developer@powershift-%s' % profile)
-        command.append('--namespace=myproject')
-        command = ' '.join(command)
-
-        result = execute(command)
-
-        if result.returncode != 0:
-            click.echo('Failed: Unable to setup context in kubeconfig.')
             ctx.exit(result.returncode)
 
         # Create an initial set of volumes.
@@ -577,6 +555,9 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
         # Stop the cluster so configuration changes will take effect
         # on the restart below.
 
+        click.echo('Restarting')
+        click.echo('Stopping')
+
         result = execute('oc cluster down')
 
         if result.returncode != 0:
@@ -604,6 +585,50 @@ def cluster_up(ctx, profile, image, version, routing_suffix, logging,
     if result.returncode != 0:
         click.echo('Failed: The "oc cluster up" command failed.')
         ctx.exit(result.returncode)
+
+    if create_profile:
+        # Create a context named after the profile to allow for reuse.
+
+        command = ['oc adm config']
+        command.append('set-cluster powershift-%s' % profile)
+
+        if public_hostname:
+            command.append('--server=https://%s:8443' % public_hostname)
+        else:
+            command.append('--server=%s' % server_url())
+
+        command.append('--insecure-skip-tls-verify=true')
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to setup cluster in kubeconfig.')
+            ctx.exit(result.returncode)
+ 
+        command = ['oc adm config']
+        command.append('set-credentials developer@powershift-%s' % profile)
+        command.append('--token=%s' % session_token())
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to set token for context in kubeconfig.')
+            ctx.exit(result.returncode)
+
+        command = ['oc adm config']
+        command.append('set-context powershift-%s' % profile)
+        command.append('--cluster=powershift-%s' % profile)
+        command.append('--user=developer@powershift-%s' % profile)
+        command.append('--namespace=myproject')
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0:
+            click.echo('Failed: Unable to setup context in kubeconfig.')
+            ctx.exit(result.returncode)
 
     # Switch to context for this profile.
 
