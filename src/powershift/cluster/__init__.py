@@ -390,6 +390,8 @@ def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
         command.append('--host-data-dir "%s"' % container_path(data_dir))
         command.append('--host-config-dir "%s"' % container_path(config_dir))
 
+        command.append('--use-existing-config')
+
         # Deal with other command options passed in by user.
 
         if image:
