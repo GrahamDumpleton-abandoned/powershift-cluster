@@ -456,6 +456,19 @@ def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
         with open(run_file, 'w') as fp:
             fp.write(command)
 
+        version_file = os.path.join(profile_dir, 'version')
+
+        try:
+            result = execute_and_capture('oc version')
+
+            version = result.split('\n')[0].split()[1].split('+')[0]
+            with open(version_file, 'w') as fp:
+                fp.write(version)
+
+        except Exception as e:
+            click.echo('Failed: Unable to determine version.')
+            ctx.exit(1)
+
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
         # actually rely on this for when creating volumes. Note that on
@@ -758,15 +771,26 @@ def cluster_list(ctx):
 
     """
 
+    profiles_dir = ctx.obj['PROFILES']
+
     current = active_profile(ctx)
 
     profiles = profile_names(ctx)
 
     for profile in profiles:
-        if profile == current:
-            click.echo(profile + ' (active)')
+        profile_dir = os.path.join(profiles_dir, profile)
+        version_file = os.path.join(profile_dir, 'version')
+
+        if os.path.exists(version_file):
+            with open(version_file) as fp:
+                label = '%s/%s' % (profile, fp.read().strip())
         else:
-            click.echo(profile)
+            label = profile
+
+        if profile == current:
+            click.echo(label + ' (active)')
+        else:
+            click.echo(label)
 
 @cluster.command('status')
 @click.pass_context
