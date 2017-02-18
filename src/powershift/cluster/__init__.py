@@ -17,7 +17,8 @@ from glob import glob
 import click
 import passlib.apache
 
-from ..cli import root, server_url, session_context, session_token
+from ..cli import root, command_client_env
+from ..cli import server_url, session_context, session_token
 
 def execute(command):
     if not isinstance(command, (list, tuple)):
@@ -173,9 +174,9 @@ openshift ex config patch /tmp/master-config.yaml \
     --patch "$PATCH" > %(master_dir)s/master-config.yaml
 """
 
-@root.group()
+@root.group('cluster')
 @click.pass_context
-def cluster(ctx):
+def group_cluster(ctx):
     """
     Manage a local OpenShift cluster.
 
@@ -198,7 +199,7 @@ def cluster(ctx):
 
     ctx.obj['PROFILES'] = PROFILES
 
-@cluster.command('up')
+@group_cluster.command('up')
 @click.option('--image', default=None,
     help='Alternate image to use for OpenShift.')
 @click.option('--version', default=None,
@@ -231,9 +232,10 @@ def cluster(ctx):
     help='Prompt for the developer password.')
 @click.argument('profile', default='default')
 @click.pass_context
-def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
-        logging, metrics, volumes, volume_size, loglevel, server_loglevel,
-        env, http_proxy, https_proxy, no_proxy, reset_password):
+def command_cluster_up(ctx, profile, image, version, public_hostname,
+        routing_suffix, logging, metrics, volumes, volume_size, loglevel,
+        server_loglevel, env, http_proxy, https_proxy, no_proxy,
+        reset_password):
 
     """
     Starts up an OpenShift cluster.
@@ -514,8 +516,8 @@ def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
 
         for n in range(1, max(0, volumes)+1):
             pv = 'pv%02d' % n
-            ctx.invoke(cluster_volumes_create, name=pv, size=volume_size,
-                    reclaim_policy='Recycle')
+            ctx.invoke(command_cluster_volumes_create, name=pv,
+                    size=volume_size, reclaim_policy='Recycle')
 
         # Initialise the accounts database with default password.
         # Note that this will recursively call back into this function
@@ -664,9 +666,9 @@ def cluster_up(ctx, profile, image, version, public_hostname, routing_suffix,
 
     click.echo('Started')
 
-@cluster.command('down')
+@group_cluster.command('down')
 @click.pass_context
-def cluster_down(ctx):
+def command_cluster_down(ctx):
     """
     Stops the active OpenShift cluster.
 
@@ -695,10 +697,10 @@ def cluster_down(ctx):
     if result.returncode != 0:
         ctx.exit(result.returncode)
 
-@cluster.command('destroy')
+@group_cluster.command('destroy')
 @click.argument('profile')
 @click.pass_context
-def cluster_destroy(ctx, profile):
+def command_cluster_destroy(ctx, profile):
     """
     Destroys the named OpenShift cluster.
 
@@ -763,9 +765,9 @@ def cluster_destroy(ctx, profile):
 
     shutil.rmtree(directory)
 
-@cluster.command('list')
+@group_cluster.command('list')
 @click.pass_context
-def cluster_list(ctx):
+def command_cluster_list(ctx):
     """
     List the available OpenShift cluster profiles.
 
@@ -792,9 +794,9 @@ def cluster_list(ctx):
         else:
             click.echo(label)
 
-@cluster.command('status')
+@group_cluster.command('status')
 @click.pass_context
-def cluster_status(ctx):
+def command_cluster_status(ctx):
     """
     Displays the status of the OpenShift cluster.
 
@@ -814,9 +816,9 @@ def cluster_status(ctx):
 
     click.echo('Status: Running (%s)' % profile)
 
-@cluster.command('ssh')
+@group_cluster.command('ssh')
 @click.pass_context
-def cluster_ssh(ctx):
+def group_cluster_ssh(ctx):
     """
     Opens a shell session in the OpenShift master node.
 
@@ -833,9 +835,32 @@ def cluster_ssh(ctx):
 
     ctx.exit(result.returncode)
 
-@cluster.group('volumes')
+@group_cluster.command('env')
 @click.pass_context
-def cluster_volumes(ctx):
+@click.option('--shell', default=None,
+    help='Force environment to be for specific shell.')
+@click.argument('profile', default='default')
+def command_cluster_env(ctx, profile, shell):
+    """
+    Display the commands to set up the environment.
+
+    """
+
+    profiles_dir = ctx.obj['PROFILES']
+    profile_dir = os.path.join(profiles_dir, profile)
+
+    version_file = os.path.join(profile_dir, 'version')
+
+    if os.path.exists(version_file):
+        with open(version_file) as fp:
+	    ctx.invoke(command_client_env, version=fp.read().strip(),
+                    shell=shell)
+    else:
+	ctx.invoke(command_client_env, version='unknown', shell=shell)
+
+@group_cluster.group('volumes')
+@click.pass_context
+def group_cluster_volumes(ctx):
     """
     Manage persistent volumes for the cluster.
 
@@ -843,7 +868,7 @@ def cluster_volumes(ctx):
 
     pass
 
-@cluster_volumes.command('create')
+@group_cluster_volumes.command('create')
 @click.option('--path', default=None, type=click.Path(resolve_path=True),
     help='Specify a path for the persistent volume')
 @click.option('--size', default='10Gi', type=VolumeSize(),
@@ -856,7 +881,7 @@ def cluster_volumes(ctx):
     help='Assign the persistent volume a claim reference.')
 @click.argument('name')
 @click.pass_context
-def cluster_volumes_create(ctx, name, path, size, access_mode,
+def command_cluster_volumes_create(ctx, name, path, size, access_mode,
         reclaim_policy, claim):
 
     """
@@ -942,9 +967,9 @@ def cluster_volumes_create(ctx, name, path, size, access_mode,
         click.echo('Failed: Persistent volume creation failed.')
         ctx.exit(result.returncode)
 
-@cluster_volumes.command('list')
+@group_cluster_volumes.command('list')
 @click.pass_context
-def cluster_volumes_list(ctx):
+def command_cluster_volumes_list(ctx):
     """
     List the available peristent volumes.
 
@@ -960,9 +985,9 @@ def cluster_volumes_list(ctx):
 
     ctx.exit(result.returncode)
 
-@cluster.group('users')
+@group_cluster.group('users')
 @click.pass_context
-def cluster_users(ctx):
+def group_cluster_users(ctx):
     """
     Manage accounts database for the cluster.
 
@@ -970,12 +995,12 @@ def cluster_users(ctx):
 
     pass
 
-@cluster_users.command('passwd')
+@group_cluster_users.command('passwd')
 @click.option('--password', prompt=True, hide_input=True,
     confirmation_prompt=True, help='The new password for the user.')
 @click.argument('user')
 @click.pass_context
-def cluster_users_passwd(ctx, user, password):
+def command_cluster_users_passwd(ctx, user, password):
     """
     Change the password for an account.
 
@@ -1005,14 +1030,14 @@ def cluster_users_passwd(ctx, user, password):
     db.set_password(user, password)
     db.save()
 
-@cluster_users.command('add')
+@group_cluster_users.command('add')
 @click.option('--password', prompt=True, hide_input=True,
     confirmation_prompt=True, help='The password for the user.')
 @click.option('--admin', is_flag=True,
     help='Make the user a system admin.')
 @click.argument('user')
 @click.pass_context
-def cluster_users_add(ctx, user, password, admin):
+def command_cluster_users_add(ctx, user, password, admin):
     """
     Adds a new user account.
 
@@ -1056,10 +1081,10 @@ def cluster_users_add(ctx, user, password, admin):
             click.echo('Failed: Unable to make user a system admin.')
             ctx.exit(result.returncode)
 
-@cluster_users.command('remove')
+@group_cluster_users.command('remove')
 @click.argument('user')
 @click.pass_context
-def cluster_users_remove(ctx, user):
+def command_cluster_users_remove(ctx, user):
     """
     Removes a user account.
 
@@ -1095,9 +1120,9 @@ def cluster_users_remove(ctx, user):
     db.delete(user)
     db.save()
 
-@cluster_users.command('list')
+@group_cluster_users.command('list')
 @click.pass_context
-def cluster_users_list(ctx):
+def command_cluster_users_list(ctx):
     """
     List active user accounts.
 
