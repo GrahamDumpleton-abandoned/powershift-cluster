@@ -460,16 +460,23 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         version_file = os.path.join(profile_dir, 'version')
 
+        origin_version = version or 'unknown'
+
         try:
             result = execute_and_capture('oc version')
 
-            version = result.split('\n')[0].split()[1].split('+')[0]
+            origin_version = result.split('\n')[0].split()[1].split('+')[0]
             with open(version_file, 'w') as fp:
-                fp.write(version)
+                fp.write(origin_version)
 
         except Exception as e:
-            click.echo('Failed: Unable to determine version.')
-            ctx.exit(1)
+            if origin_version != 'unknown':
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            else:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
 
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
@@ -552,24 +559,33 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
                 click.echo('Failed: Unable to enable password database.')
                 ctx.exit(1)
 
-        # Enable labels for all built images.
+        # Enable labels for all built images. We temporarily disable
+        # this if using Origin 1.5.X and proxy settings enabled as
+        # triggers bug in 'openshift ex config patch'.
 
-        script_file = os.path.join(config_dir, 'master', 'enable_labels')
+        enable_labels = True
 
-        with io.open(script_file, 'w', newline='') as fp:
-            fp.write(enable_labels_script % dict(master_dir=master_dir,
-                profile=profile))
+        if http_proxy or https_proxy or no_proxy:
+            if origin_version.startswith('v1.5.'):
+                enable_labels = False
 
-        command = []
+        if enable_labels:
+            script_file = os.path.join(config_dir, 'master', 'enable_labels')
 
-        command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
-        command.extend([posixpath.join(master_dir, 'enable_labels')])
+            with io.open(script_file, 'w', newline='') as fp:
+                fp.write(enable_labels_script % dict(master_dir=master_dir,
+                    profile=profile))
 
-        try:
-            result = execute_and_capture(command)
-        except Exception:
-            click.echo('Failed: Unable to enable image labels.')
-            ctx.exit(1)
+            command = []
+
+            command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
+            command.extend([posixpath.join(master_dir, 'enable_labels')])
+
+            try:
+                result = execute_and_capture(command)
+            except Exception:
+                click.echo('Failed: Unable to enable image labels.')
+                ctx.exit(1)
 
         # Stop the cluster so configuration changes will take effect
         # on the restart below.
