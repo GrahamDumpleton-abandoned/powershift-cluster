@@ -228,14 +228,14 @@ def group_cluster(ctx):
     help='HTTPS proxy for master/builds (1.5+).')
 @click.option('--no-proxy', '-e', multiple=True,
     help='Hosts/subnets proxy should ignore (1.5+).')
-@click.option('--reset-password', is_flag=True,
-    help='Prompt for the developer password.')
+@click.option('--identity-provider', default='none',
+    help='Enable use of identity provider.')
 @click.argument('profile', default='default')
 @click.pass_context
 def command_cluster_up(ctx, profile, image, version, public_hostname,
         routing_suffix, logging, metrics, volumes, volume_size, loglevel,
         server_loglevel, env, http_proxy, https_proxy, no_proxy,
-        reset_password):
+        identity_provider):
 
     """
     Starts up an OpenShift cluster.
@@ -329,7 +329,7 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         # Prompt for alternate developer account password to use.
 
-        if reset_password:
+        if identity_provider == 'htpasswd':
             password = click.prompt('Enter Password',
                     default='developer', hide_input=True,
                     confirmation_prompt=True)
@@ -535,21 +535,22 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
      
         master_dir = '/var/lib/origin/openshift.local.config/master'
 
-        script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
+        if identity_provider == 'htpasswd':
+            script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
 
-        with io.open(script_file, 'w', newline='') as fp:
-            fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
+            with io.open(script_file, 'w', newline='') as fp:
+                fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
 
-        command = []
+            command = []
 
-        command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
-        command.extend([posixpath.join(master_dir, 'enable_htpasswd')])
+            command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
+            command.extend([posixpath.join(master_dir, 'enable_htpasswd')])
 
-        try:
-            result = execute_and_capture(command)
-        except Exception:
-            click.echo('Failed: Unable to enable password database.')
-            ctx.exit(1)
+            try:
+                result = execute_and_capture(command)
+            except Exception:
+                click.echo('Failed: Unable to enable password database.')
+                ctx.exit(1)
 
         # Enable labels for all built images.
 
