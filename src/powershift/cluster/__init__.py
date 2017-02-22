@@ -870,10 +870,10 @@ def command_cluster_env(ctx, profile, shell):
 
     if os.path.exists(version_file):
         with open(version_file) as fp:
-	    ctx.invoke(command_client_env, version=fp.read().strip(),
+            ctx.invoke(command_client_env, version=fp.read().strip(),
                     shell=shell)
     else:
-	ctx.invoke(command_client_env, version='unknown', shell=shell)
+        ctx.invoke(command_client_env, version='unknown', shell=shell)
 
 @group_cluster.group('volumes')
 @click.pass_context
