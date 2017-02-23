@@ -355,7 +355,7 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         container_profiles_dir = '/var/lib/powershift/profiles'
         container_profile_dir = posixpath.join(container_profiles_dir, profile)
 
-        container_data_dir = os.path.join(container_profile_dir, 'data')
+        container_data_dir = posixpath.join(container_profile_dir, 'data')
 
         command = []
         
