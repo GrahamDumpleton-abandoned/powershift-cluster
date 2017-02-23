@@ -328,39 +328,6 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
             click.echo('Failed: Cannot create host profile directories.')
             sys.exit(1)
 
-        # Determine version of OpenShift being deployed.
-
-        version_file = os.path.join(profile_dir, 'version')
-
-        origin_version = version or 'unknown'
-
-        try:
-            result = execute_and_capture('oc version --request-timeout 1')
-
-            origin_version = result.split('\n')[0].split()[1].split('+')[0]
-            with open(version_file, 'w') as fp:
-                fp.write(origin_version)
-
-        except subprocess.CalledProcessError as e:
-            try:
-                origin_version = e.output.split('\n')[0].split()[1].split('+')[0]
-
-                with open(version_file, 'w') as fp:
-                    fp.write(origin_version)
-
-            except Exception:
-                click.echo('Failed: Unable to determine oc version.')
-                ctx.exit(1)
-
-        except Exception as e:
-            if origin_version != 'unknown':
-                with open(version_file, 'w') as fp:
-                    fp.write(origin_version)
-
-            else:
-                click.echo('Failed: Unable to determine oc version.')
-                ctx.exit(1)
-
         # Create the directory structure inside of the container.
 
         container_profiles_dir = '/var/lib/powershift/profiles'
@@ -512,6 +479,39 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         with open(run_file, 'w') as fp:
             fp.write(command)
+
+        # Determine version of OpenShift being deployed.
+
+        version_file = os.path.join(profile_dir, 'version')
+
+        origin_version = version or 'unknown'
+
+        try:
+            result = execute_and_capture('oc version --request-timeout 1')
+
+            origin_version = result.split('\n')[0].split()[1].split('+')[0]
+            with open(version_file, 'w') as fp:
+                fp.write(origin_version)
+
+        except subprocess.CalledProcessError as e:
+            try:
+                origin_version = e.output.split('\n')[0].split()[1].split('+')[0]
+
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            except Exception:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
+
+        except Exception as e:
+            if origin_version != 'unknown':
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            else:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
 
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
