@@ -262,7 +262,7 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
     \b
       powershift cluster up --image="registry.example.com/origin" \\
-          --version="v1.1"
+          --version="v1.4.1"
 
     Note that you can only start up one OpenShift cluster at a time. If
     you need to switch between instances you will need to shutdown the
@@ -311,7 +311,7 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         create_profile = True
 
-        # Create the directory structure for a specific profile.
+        # Create the directory structure on local file system.
 
         try:
             data_dir = os.path.join(profile_dir, 'data')
@@ -319,13 +319,55 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
             volumes_dir = os.path.join(profile_dir, 'volumes')
 
             os.mkdir(profile_dir)
+
             os.mkdir(data_dir)
             os.mkdir(config_dir)
             os.mkdir(volumes_dir)
 
         except OSError:
-            click.echo('Failed: Cannot create profile directories.')
+            click.echo('Failed: Cannot create host profile directories.')
             sys.exit(1)
+
+        # Determine version of OpenShift being deployed.
+
+        version_file = os.path.join(profile_dir, 'version')
+
+        origin_version = version or 'unknown'
+
+        try:
+            result = execute_and_capture('oc version')
+
+            origin_version = result.split('\n')[0].split()[1].split('+')[0]
+            with open(version_file, 'w') as fp:
+                fp.write(origin_version)
+
+        except Exception as e:
+            if origin_version != 'unknown':
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            else:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
+
+        # Create the directory structure inside of the container.
+
+        container_profiles_dir = '/var/lib/powershift/profiles'
+        container_profile_dir = posixpath.join(container_profiles_dir, profile)
+
+        container_data_dir = os.path.join(container_profile_dir, 'data')
+
+        command = []
+        
+        command.append('docker run --rm -v /var:/var busybox mkdir -p')
+        command.append(container_data_dir)
+
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0: 
+            click.echo('Failed: Cannot create container profile directories.')
 
         # Prompt for alternate developer account password to use.
 
@@ -389,7 +431,9 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         # to save uses path convention for inside of the container and
         # not local host operating system convention.
 
-        command.append('--host-data-dir "%s"' % container_path(data_dir))
+        #command.append('--host-data-dir "%s"' % container_path(data_dir))
+        command.append('--host-data-dir "%s"' % container_data_dir)
+
         command.append('--host-config-dir "%s"' % container_path(config_dir))
 
         command.append('--use-existing-config')
@@ -457,26 +501,6 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         with open(run_file, 'w') as fp:
             fp.write(command)
-
-        version_file = os.path.join(profile_dir, 'version')
-
-        origin_version = version or 'unknown'
-
-        try:
-            result = execute_and_capture('oc version')
-
-            origin_version = result.split('\n')[0].split()[1].split('+')[0]
-            with open(version_file, 'w') as fp:
-                fp.write(origin_version)
-
-        except Exception as e:
-            if origin_version != 'unknown':
-                with open(version_file, 'w') as fp:
-                    fp.write(origin_version)
-
-            else:
-                click.echo('Failed: Unable to determine oc version.')
-                ctx.exit(1)
 
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
@@ -769,6 +793,23 @@ def command_cluster_destroy(ctx, profile):
 
     except Exception:
         click.echo('Warning: Unable to query images for profile.')
+
+    # Now remove any profile directory inside of the container.
+
+    container_profiles_dir = '/var/lib/powershift/profiles'
+    container_profile_dir = posixpath.join(container_profiles_dir, profile)
+
+    command = []
+
+    command.append('docker run --rm -v /var:/var busybox rm -rf')
+    command.append(container_profile_dir)
+
+    command = ' '.join(command)
+
+    result = execute(command)
+
+    if result.returncode != 0: 
+        click.echo('Failed: Cannot delete container profile directory.')
 
     # Remove the profile directory. There may be a risk this will not
     # completely work if files were created in a volume which had
