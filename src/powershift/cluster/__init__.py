@@ -335,11 +335,22 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         origin_version = version or 'unknown'
 
         try:
-            result = execute_and_capture('oc version')
+            result = execute_and_capture('oc version --request-timeout 1')
 
             origin_version = result.split('\n')[0].split()[1].split('+')[0]
             with open(version_file, 'w') as fp:
                 fp.write(origin_version)
+
+        except subprocess.CalledProcessError as e:
+            try:
+                origin_version = e.output.split('\n')[0].split()[1].split('+')[0]
+
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            except Exception:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
 
         except Exception as e:
             if origin_version != 'unknown':
