@@ -561,23 +561,25 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
             ctx.invoke(command_cluster_volumes_create, name=pv,
                     size=volume_size, reclaim_policy='Recycle')
 
-        # Initialise the accounts database with default password.
-        # Note that this will recursively call back into this function
-        # to start the cluster after having stopped it.
-
-        passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
-
-        # Create the database file.
-
-        db = passlib.apache.HtpasswdFile(passwd_file, new=True)
-        db.set_password('developer', password)
-        db.save()
-
         # Update the authentication provider.
      
         master_dir = '/var/lib/origin/openshift.local.config/master'
 
         if identity_provider == 'htpasswd':
+            # Initialise the accounts database with default password.
+            # Note that this will recursively call back into this function
+            # to start the cluster after having stopped it.
+
+            passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+
+            # Create the database file.
+
+            db = passlib.apache.HtpasswdFile(passwd_file, new=True)
+            db.set_password('developer', password)
+            db.save()
+
+            # Now set the identity provider to be htpasswd.
+
             script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
 
             with io.open(script_file, 'w', newline='') as fp:
