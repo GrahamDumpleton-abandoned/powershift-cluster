@@ -538,13 +538,9 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         context = 'default/%s/system:admin' % cluster
 
-        kubeconfig = os.path.join(config_dir, 'master', 'admin.kubeconfig')
-
-        command = ['oc adm policy']
+        command = ['docker exec origin oc adm policy']
 
         command.append('add-cluster-role-to-group sudoer system:authenticated')
-        command.append('--config "%s"' % kubeconfig)
-        command.append('--context "%s"' % context)
 
         command = ' '.join(command)
 
