@@ -333,11 +333,13 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         container_profiles_dir = '/var/lib/powershift/profiles'
         container_profile_dir = posixpath.join(container_profiles_dir, profile)
 
+        container_config_dir = posixpath.join(container_profile_dir, 'config')
         container_data_dir = posixpath.join(container_profile_dir, 'data')
 
         command = []
         
         command.append('docker run --rm -v /var:/var busybox mkdir -p')
+        command.append(container_config_dir)
         command.append(container_data_dir)
 
         command = ' '.join(command)
@@ -405,14 +407,11 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         if routing_suffix:
             command.append('--routing-suffix "%s"' % routing_suffix)
 
-        # Persist configuration between runs. Need to ensure location
-        # to save uses path convention for inside of the container and
-        # not local host operating system convention.
+        # Persist configuration between runs. This uses directories
+        # mapped from inside of the container.
 
-        #command.append('--host-data-dir "%s"' % container_path(data_dir))
         command.append('--host-data-dir "%s"' % container_data_dir)
-
-        command.append('--host-config-dir "%s"' % container_path(config_dir))
+        command.append('--host-config-dir "%s"' % container_config_dir)
 
         command.append('--use-existing-config')
 
