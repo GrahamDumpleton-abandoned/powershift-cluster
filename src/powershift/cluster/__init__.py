@@ -338,7 +338,7 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         container_volumes_dir = posixpath.join(container_profile_dir, 'volumes')
 
         command = []
-        
+
         command.append('docker run --rm -v /var:/var busybox mkdir -p')
         command.append(container_config_dir)
         command.append(container_data_dir)
