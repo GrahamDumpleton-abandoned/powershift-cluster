@@ -350,6 +350,7 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         if result.returncode != 0: 
             click.echo('Failed: Cannot create container profile directories.')
+            ctx.exit(result.returncode)
 
         # Prompt for alternate developer account password to use.
 
