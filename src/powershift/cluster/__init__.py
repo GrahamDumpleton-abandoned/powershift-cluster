@@ -466,11 +466,9 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         command = []
 
-        command.append('docker cp')
+        command.extend(['docker', 'cp'])
         command.append(script_dir)
         command.append('origin:/var/lib/origin/openshift.local.config')
-
-        command = ' '.join(command)
 
         result = execute(command)
 
@@ -522,11 +520,9 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
             command = []
 
-            command.append('docker cp')
+            command.extend(['docker', 'cp'])
             command.append(passwd_file)
             command.append('origin:/var/lib/origin/openshift.local.config/master')
-
-            command = ' '.join(command)
 
             result = execute(command)
 
@@ -1080,11 +1076,9 @@ def command_cluster_users_passwd(ctx, user, password):
 
     command = []
 
-    command.append('docker cp')
+    command.extend(['docker', 'cp'])
     command.append(passwd_file)
     command.append('origin:/var/lib/origin/openshift.local.config/master')
-
-    command = ' '.join(command)
 
     result = execute(command)
 
@@ -1130,11 +1124,9 @@ def command_cluster_users_add(ctx, user, password, admin):
 
     command = []
 
-    command.append('docker cp')
+    command.extend(['docker', 'cp'])
     command.append(passwd_file)
     command.append('origin:/var/lib/origin/openshift.local.config/master')
-
-    command = ' '.join(command)
 
     result = execute(command)
 
@@ -1196,11 +1188,9 @@ def command_cluster_users_remove(ctx, user):
 
     command = []
 
-    command.append('docker cp')
+    command.extend(['docker', 'cp'])
     command.append(passwd_file)
     command.append('origin:/var/lib/origin/openshift.local.config/master')
-
-    command = ' '.join(command)
 
     result = execute(command)
 
