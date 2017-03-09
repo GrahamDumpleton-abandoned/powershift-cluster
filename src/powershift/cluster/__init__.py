@@ -335,12 +335,14 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         container_config_dir = posixpath.join(container_profile_dir, 'config')
         container_data_dir = posixpath.join(container_profile_dir, 'data')
+        container_volumes_dir = posixpath.join(container_profile_dir, 'volumes')
 
         command = []
         
         command.append('docker run --rm -v /var:/var busybox mkdir -p')
         command.append(container_config_dir)
         command.append(container_data_dir)
+        command.append(container_volumes_dir)
 
         command = ' '.join(command)
 
@@ -984,10 +986,37 @@ def command_cluster_volumes_create(ctx, name, path, size, access_mode,
     # directory we make it writable to everyone else an arbitrary user
     # in the container will not be able to write to it.
 
+    container_profiles_dir = '/var/lib/powershift/profiles'
+    container_profile_dir = posixpath.join(container_profiles_dir, profile)
+
+    container_volumes_dir = posixpath.join(container_profile_dir, 'volumes')
+
     if path is None:
-        path = posixpath.join(profiles, profile, 'volumes', name)
-        os.mkdir(path)
-        os.chmod(path, 0o777)
+        path = posixpath.join(container_profile_dir, 'volumes', name)
+
+        command = []
+        
+        command.append('docker run --rm -v /var:/var busybox mkdir -p')
+        command.append(path)
+
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0: 
+            click.echo('Failed: Cannot create container volume directory.')
+
+        command = []
+
+        command.append('docker run --rm -v /var:/var busybox chmod 0777')
+        command.append(path)
+
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0: 
+            click.echo('Failed: Cannot set permissions on volume directory.')
 
     else:
         path = os.path.abspath(path)
