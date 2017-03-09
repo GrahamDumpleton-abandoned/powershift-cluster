@@ -146,34 +146,6 @@ openshift ex config patch /tmp/master-config.yaml \
     --patch "$PATCH" > %(master_dir)s/master-config.yaml
 """
 
-enable_labels_script = u"""#!/bin/bash
-PATCH=`cat <<EOF
-{
-    "admissionConfig": {
-        "pluginConfig": {
-            "BuildDefaults": {
-                "configuration": {
-                    "apiVersion": "v1",
-                    "kind": "BuildDefaultsConfig",
-                    "imageLabels": [
-                        {
-                            "name": "powershift-profile",
-                            "value": "%(profile)s"
-                        }
-                    ]
-                }
-            }
-        }
-    }
-}
-EOF`
-
-cp %(master_dir)s/master-config.yaml /tmp/master-config.yaml
-
-openshift ex config patch /tmp/master-config.yaml \
-    --patch "$PATCH" > %(master_dir)s/master-config.yaml
-"""
-
 @root.group('cluster')
 @click.pass_context
 def group_cluster(ctx):
@@ -515,8 +487,23 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
                 click.echo('Failed: Unable to determine oc version.')
                 ctx.exit(1)
 
+        # Copy scripts into the container to do setup steps.
 
+        script_dir = os.path.join(os.path.dirname(__file__), 'scripts')
 
+        command = []
+
+        command.append('docker cp')
+        command.append(script_dir)
+        command.append('origin:/var/lib/origin/openshift.local.config')
+
+        command = ' '.join(command)
+
+        result = execute(command)
+
+        if result.returncode != 0: 
+            click.echo('Failed: Cannot copy scripts into container.')
+            ctx.exit(1)
 
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
@@ -593,22 +580,19 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
                 enable_labels = False
 
         if enable_labels:
-            script_file = os.path.join(config_dir, 'master', 'enable_labels')
-
-            with io.open(script_file, 'w', newline='') as fp:
-                fp.write(enable_labels_script % dict(master_dir=master_dir,
-                    profile=profile))
-
             command = []
 
-            command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
-            command.extend([posixpath.join(master_dir, 'enable_labels')])
+            command.append('docker exec -t origin /bin/bash')
+            command.append('/var/lib/origin/openshift.local.config/scripts/enable-labels.sh')
+            command.append(profile)
 
-            try:
-                result = execute_and_capture(command)
-            except Exception:
+            command = ' '.join(command)
+
+            result = execute(command)
+
+            if result.returncode != 0:
                 click.echo('Failed: Unable to enable image labels.')
-                ctx.exit(1)
+                ctx.exit(result.returncode)
 
         # Stop the cluster so configuration changes will take effect
         # on the restart below.
