@@ -119,33 +119,6 @@ class VolumeSize(click.ParamType):
             self.fail('%s is not a valid volume size' % value, param, ctx)
         return value
 
-enable_htpasswd_script = u"""#!/bin/bash
-PATCH=`cat <<EOF
-{
-    "oauthConfig": {
-        "identityProviders": [
-            {
-                "challenge": true,
-                "login": true,
-                "mappingMethod": "add",
-                "name": "htpassword",
-                "provider": {
-                    "apiVersion": "v1",
-                    "kind": "HTPasswdPasswordIdentityProvider",
-                    "file": "%(master_dir)s/users.htpasswd"
-                }
-            }
-        ]
-    }
-}
-EOF`
-
-cp %(master_dir)s/master-config.yaml /tmp/master-config.yaml
-
-openshift ex config patch /tmp/master-config.yaml \
-    --patch "$PATCH" > %(master_dir)s/master-config.yaml
-"""
-
 @root.group('cluster')
 @click.pass_context
 def group_cluster(ctx):
@@ -540,34 +513,42 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         if identity_provider == 'htpasswd':
             # Initialise the accounts database with default password.
-            # Note that this will recursively call back into this function
-            # to start the cluster after having stopped it.
 
-            passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
-
-            # Create the database file.
+            passwd_file = os.path.join(profile_dir, 'users.htpasswd')
 
             db = passlib.apache.HtpasswdFile(passwd_file, new=True)
             db.set_password('developer', password)
             db.save()
 
+            command = []
+
+            command.append('docker cp')
+            command.append(passwd_file)
+            command.append('origin:/var/lib/origin/openshift.local.config/master')
+
+            command = ' '.join(command)
+
+            result = execute(command)
+
+            if result.returncode != 0: 
+                click.echo('Failed: Cannot copy htpasswd into container.')
+                ctx.exit(1)
+
             # Now set the identity provider to be htpasswd.
-
-            script_file = os.path.join(config_dir, 'master', 'enable_htpasswd')
-
-            with io.open(script_file, 'w', newline='') as fp:
-                fp.write(enable_htpasswd_script % dict(master_dir=master_dir))
 
             command = []
 
-            command.extend(['docker', 'exec', '-t', 'origin', '/bin/bash'])
-            command.extend([posixpath.join(master_dir, 'enable_htpasswd')])
+            command.append('docker exec -t origin /bin/bash')
+            command.append('/var/lib/origin/openshift.local.config/scripts/enable-htpasswd.sh')
+            command.append(profile)
 
-            try:
-                result = execute_and_capture(command)
-            except Exception:
+            command = ' '.join(command)
+
+            result = execute(command)
+
+            if result.returncode != 0:
                 click.echo('Failed: Unable to enable password database.')
-                ctx.exit(1)
+                ctx.exit(result.returncode)
 
         # Enable labels for all built images. We temporarily disable
         # this if using Origin 1.5.X and proxy settings enabled as
@@ -1082,8 +1063,7 @@ def command_cluster_users_passwd(ctx, user, password):
 
     profiles_dir = ctx.obj['PROFILES']
     profile_dir = os.path.join(profiles_dir, profile)
-    config_dir = os.path.join(profile_dir, 'config')
-    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+    passwd_file = os.path.join(profile_dir, 'users.htpasswd')
 
     if not os.path.exists(passwd_file):
         click.echo('Failed: The password file does not exist.')
@@ -1097,6 +1077,20 @@ def command_cluster_users_passwd(ctx, user, password):
 
     db.set_password(user, password)
     db.save()
+
+    command = []
+
+    command.append('docker cp')
+    command.append(passwd_file)
+    command.append('origin:/var/lib/origin/openshift.local.config/master')
+
+    command = ' '.join(command)
+
+    result = execute(command)
+
+    if result.returncode != 0: 
+        click.echo('Failed: Cannot copy htpasswd into container.')
+        ctx.exit(1)
 
 @group_cluster_users.command('add')
 @click.option('--password', prompt=True, hide_input=True,
@@ -1119,8 +1113,7 @@ def command_cluster_users_add(ctx, user, password, admin):
 
     profiles_dir = ctx.obj['PROFILES']
     profile_dir = os.path.join(profiles_dir, profile)
-    config_dir = os.path.join(profile_dir, 'config')
-    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+    passwd_file = os.path.join(profile_dir, 'users.htpasswd')
 
     if not os.path.exists(passwd_file):
         click.echo('Failed: The password file does not exist.')
@@ -1134,6 +1127,20 @@ def command_cluster_users_add(ctx, user, password, admin):
 
     db.set_password(user, password)
     db.save()
+
+    command = []
+
+    command.append('docker cp')
+    command.append(passwd_file)
+    command.append('origin:/var/lib/origin/openshift.local.config/master')
+
+    command = ' '.join(command)
+
+    result = execute(command)
+
+    if result.returncode != 0: 
+        click.echo('Failed: Cannot copy htpasswd into container.')
+        ctx.exit(1)
 
     if admin:
         command = ['oc adm policy']
@@ -1166,8 +1173,7 @@ def command_cluster_users_remove(ctx, user):
 
     profiles_dir = ctx.obj['PROFILES']
     profile_dir = os.path.join(profiles_dir, profile)
-    config_dir = os.path.join(profile_dir, 'config')
-    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+    passwd_file = os.path.join(profile_dir, 'users.htpasswd')
 
     if not os.path.exists(passwd_file):
         click.echo('Failed: The password file does not exist.')
@@ -1188,6 +1194,20 @@ def command_cluster_users_remove(ctx, user):
     db.delete(user)
     db.save()
 
+    command = []
+
+    command.append('docker cp')
+    command.append(passwd_file)
+    command.append('origin:/var/lib/origin/openshift.local.config/master')
+
+    command = ' '.join(command)
+
+    result = execute(command)
+
+    if result.returncode != 0: 
+        click.echo('Failed: Cannot copy htpasswd into container.')
+        ctx.exit(1)
+
 @group_cluster_users.command('list')
 @click.pass_context
 def command_cluster_users_list(ctx):
@@ -1203,8 +1223,7 @@ def command_cluster_users_list(ctx):
 
     profiles_dir = ctx.obj['PROFILES']
     profile_dir = os.path.join(profiles_dir, profile)
-    config_dir = os.path.join(profile_dir, 'config')
-    passwd_file = os.path.join(config_dir, 'master', 'users.htpasswd')
+    passwd_file = os.path.join(profile_dir, 'users.htpasswd')
 
     if not os.path.exists(passwd_file):
         ctx.exit(1)
