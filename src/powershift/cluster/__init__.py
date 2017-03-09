@@ -514,24 +514,12 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
                 click.echo('Failed: Unable to determine oc version.')
                 ctx.exit(1)
 
+
+
+
         # Grant sudoer role to the developer so they do not switch to
         # the admin account. Instead can use user impersonation. We
-        # actually rely on this for when creating volumes. Note that on
-        # Linux we have to go into the container and change owner and
-        # group of files so can read them, but also so can later remove
-        # the profile completely.
-
-        if sys.platform.startswith('linux'):
-            command = ('docker exec origin chown -R %d:%d '
-                    '/var/lib/origin/openshift.local.config '
-                    '/var/lib/origin/openshift.local.etcd' % (
-                    os.getuid(), os.getgid()))
-
-            result = execute(command)
-
-            if result.returncode != 0:
-                click.echo('Failed: Unable to adjust kubeconfig access.')
-                ctx.exit(result.returncode)
+        # actually rely on this for when creating volumes.
 
         context = session_context()
 
