@@ -306,6 +306,39 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         else:
             password = 'developer'
 
+        # Determine version of OpenShift being deployed.
+
+        version_file = os.path.join(profile_dir, 'version')
+
+        origin_version = version or 'unknown'
+
+        try:
+            result = execute_and_capture('oc version --request-timeout 1')
+
+            origin_version = result.split('\n')[0].split()[1].split('+')[0]
+            with open(version_file, 'w') as fp:
+                fp.write(origin_version)
+
+        except subprocess.CalledProcessError as e:
+            try:
+                origin_version = e.output.split('\n')[0].split()[1].split('+')[0]
+
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            except Exception:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
+
+        except Exception as e:
+            if origin_version != 'unknown':
+                with open(version_file, 'w') as fp:
+                    fp.write(origin_version)
+
+            else:
+                click.echo('Failed: Unable to determine oc version.')
+                ctx.exit(1)
+
         # Construct the command for oc cluster up.
 
         command = ['oc cluster up']
@@ -360,6 +393,10 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         command.append('--host-data-dir "%s"' % container_data_dir)
         command.append('--host-config-dir "%s"' % container_config_dir)
+
+        if not (origin_version.startswith('v1.3.') or
+                origin_version.startswith('v1.4.')):
+            command.append('--host-pv-dir "%s"' % container_volumes_dir)
 
         command.append('--use-existing-config')
 
@@ -427,39 +464,6 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
         with open(run_file, 'w') as fp:
             fp.write(command)
 
-        # Determine version of OpenShift being deployed.
-
-        version_file = os.path.join(profile_dir, 'version')
-
-        origin_version = version or 'unknown'
-
-        try:
-            result = execute_and_capture('oc version --request-timeout 1')
-
-            origin_version = result.split('\n')[0].split()[1].split('+')[0]
-            with open(version_file, 'w') as fp:
-                fp.write(origin_version)
-
-        except subprocess.CalledProcessError as e:
-            try:
-                origin_version = e.output.split('\n')[0].split()[1].split('+')[0]
-
-                with open(version_file, 'w') as fp:
-                    fp.write(origin_version)
-
-            except Exception:
-                click.echo('Failed: Unable to determine oc version.')
-                ctx.exit(1)
-
-        except Exception as e:
-            if origin_version != 'unknown':
-                with open(version_file, 'w') as fp:
-                    fp.write(origin_version)
-
-            else:
-                click.echo('Failed: Unable to determine oc version.')
-                ctx.exit(1)
-
         # Copy scripts into the container to do setup steps.
 
         script_dir = os.path.join(os.path.dirname(__file__), 'scripts')
@@ -498,12 +502,14 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
             click.echo('Failed: Unable to assign sudoer role to developer.')
             ctx.exit(result.returncode)
 
-        # Create an initial set of volumes.
+        # Create an initial set of volumes if Origin 1.3/1.4.
 
-        for n in range(1, max(0, volumes)+1):
-            pv = 'pv%02d' % n
-            ctx.invoke(command_cluster_volumes_create, name=pv,
-                    size=volume_size, reclaim_policy='Recycle')
+        if (origin_version.startswith('v1.3.') or
+                origin_version.startswith('v1.4.')):
+            for n in range(1, max(0, volumes)+1):
+                pv = 'pv%02d' % n
+                ctx.invoke(command_cluster_volumes_create, name=pv,
+                        size=volume_size, reclaim_policy='Recycle')
 
         # Update the authentication provider.
      
