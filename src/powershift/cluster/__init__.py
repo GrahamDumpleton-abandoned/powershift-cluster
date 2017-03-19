@@ -132,7 +132,7 @@ def group_cluster(ctx):
     only run one instance at a time.
 
     The default routes for exposed applications in the OpenShift cluster
-    will use xip.io and the local host IP of your OpenShift cluster. A
+    will use nip.io and the local host IP of your OpenShift cluster. A
     different route suffix can be supplied when the OpenShift cluster is
     started up the first time.
 
@@ -374,14 +374,14 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
             command.append('--public-hostname "%s"' % ipaddr)
 
         # Use the same IP address for applicaton routes unless an
-        # alternative is provided. We use xip.io so can easily map
+        # alternative is provided. We use nip.io so can easily map
         # everything back to the same IP. If an alternative hostname was
         # provided, then is up to user to create a wildcard DNS entry
         # that maps to the necessary IP address.
 
         if routing_suffix is None:
             if ipaddr and ipaddr != '127.0.0.1':
-                routing_suffix = 'apps.%s.%s.xip.io' % (profile, ipaddr)
+                routing_suffix = 'apps.%s.%s.nip.io' % (profile, ipaddr)
             else:
                 routing_suffix = ''
 
