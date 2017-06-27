@@ -17,7 +17,7 @@ from glob import glob
 import click
 import passlib.apache
 
-from ..cli import root, command_client_env
+from ..cli import root, command_client_env, verify_oc_client_exists
 from ..cli import server_url, session_context, session_token
 
 def execute(command):
@@ -143,6 +143,8 @@ def group_cluster(ctx):
     PROFILES = os.environ.get('POWERSHIFT_PROFILES_DIR', DEFAULT_PROFILES)
 
     ctx.obj['PROFILES'] = PROFILES
+
+    verify_oc_client_exists(ctx)
 
 @group_cluster.command('up')
 @click.option('--image', default=None,
