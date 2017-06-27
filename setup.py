@@ -31,7 +31,7 @@ setup_kwargs = dict(
     packages=['powershift', 'powershift.cluster', 'powershift.cluster.scripts'],
     package_dir={'powershift': 'src/powershift'},
     install_requires=['passlib'],
-    extras_require={'cli': ['powershift-cli>=1.1.8']},
+    extras_require={'cli': ['powershift-cli>=1.2.0']},
     entry_points = {'powershift_cli_plugins': ['cluster = powershift.cluster']},
     package_data = {'powershift.cluster.scripts': ['enable-labels.sh',
         'enable-htpasswd.sh']},
