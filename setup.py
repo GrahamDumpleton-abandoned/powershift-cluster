@@ -19,7 +19,7 @@ classifiers = [
 
 setup_kwargs = dict(
     name='powershift-cluster',
-    version='2.2.0',
+    version='2.3.0',
     description='PowerShift command plugin for creating OpenShift clusters.',
     long_description=long_description,
     url='https://github.com/getwarped/powershift-cluster',
