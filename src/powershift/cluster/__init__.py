@@ -159,6 +159,8 @@ def group_cluster(ctx):
     help='Install logging (experimental).')
 @click.option('--metrics', is_flag=True,
     help='Install metrics (experimental).')
+@click.option('--service-catalog', is_flag=True,
+    help='Install service catalog (3.6+).')
 @click.option('--volumes', default=10, type=int,
     help='Number of persistent volumes.')
 @click.option('--volume-size', default='10Gi', type=VolumeSize(),
@@ -180,9 +182,9 @@ def group_cluster(ctx):
 @click.argument('profile', default='default')
 @click.pass_context
 def command_cluster_up(ctx, profile, image, version, public_hostname,
-        routing_suffix, logging, metrics, volumes, volume_size, loglevel,
-        server_loglevel, env, http_proxy, https_proxy, no_proxy,
-        identity_provider):
+        routing_suffix, logging, metrics, service_catalog, volumes,
+        volume_size, loglevel, server_loglevel, env, http_proxy,
+        https_proxy, no_proxy, identity_provider):
 
     """
     Starts up an OpenShift cluster.
@@ -415,6 +417,9 @@ def command_cluster_up(ctx, profile, image, version, public_hostname,
 
         if metrics:
             command.append('--metrics')
+
+        if service_catalog:
+            command.append('--service-catalog')
 
         if loglevel:
             command.append('--loglevel %d' % loglevel)
