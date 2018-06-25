@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eo pipefail
+#set -eo pipefail
 
 PROFILE=$1
 
@@ -29,5 +29,12 @@ EOF`
 
 cp $MASTER/master-config.yaml /tmp/master-config.yaml
 
-openshift ex config patch /tmp/master-config.yaml \
-    --patch "$PATCH" > $MASTER/master-config.yaml
+openshift ex --help > /dev/null 2>&1
+
+if [ "$?" = "1" ]; then
+    oc ex config patch /tmp/master-config.yaml \
+        --patch "$PATCH" > $MASTER/master-config.yaml
+else
+    openshift ex config patch /tmp/master-config.yaml \
+        --patch "$PATCH" > $MASTER/master-config.yaml
+fi
